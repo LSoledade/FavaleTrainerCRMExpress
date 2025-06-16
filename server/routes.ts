@@ -37,7 +37,8 @@ import schedulingRouter from "./routes/scheduling.routes"; // Import scheduling 
 import statsRouter from "./routes/stats.routes"; // Import stats router
 import { isAuthenticated, isAdmin } from "./middlewares/auth.middleware"; // Import middlewares
 import { addUserNamesToTasks } from "./utils/task.utils"; // Import addUserNamesToTasks
-import oauthRoutes from './routes/oauth.routes';
+// Remover integração Google Calendar
+// import oauthRoutes from './routes/oauth.routes';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes and middleware
@@ -52,7 +53,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/weather", weatherRouter); // Use weather router
   app.use("/api/scheduling", schedulingRouter); // Use scheduling router
   app.use("/api/stats", statsRouter); // Use stats router
-  app.use('/api/oauth', oauthRoutes);
+  // Remover integração Google Calendar
+  // app.use('/api/oauth', oauthRoutes);
 
   // Get all leads
   app.get('/api/leads', async (req, res) => {
@@ -206,6 +208,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Erro ao deletar lead:', error);
       res.status(500).json({ message: "Erro ao deletar lead" });
+    }
+  });
+
+  // Get all trainers
+  app.get('/api/trainers', async (req, res) => {
+    try {
+      const trainersResult = await db.execute(sql`
+        SELECT id, name, email, source, active, specialties, phone
+        FROM trainers 
+        WHERE active = true
+        ORDER BY source, name
+      `);
+      
+      res.json(trainersResult.rows);
+    } catch (error) {
+      console.error('Erro ao buscar professores:', error);
+      res.status(500).json({ message: "Erro ao buscar professores" });
+    }
+  });
+
+  // Check session conflicts
+  app.post('/api/sessions/check-conflicts', async (req, res) => {
+    try {
+      const { trainerId, date, startTime, endTime } = req.body;
+      
+      if (!trainerId || !date || !startTime || !endTime) {
+        return res.status(400).json({ message: "Parâmetros obrigatórios não fornecidos" });
+      }
+
+      const startDateTime = new Date(`${date}T${startTime}`);
+      const endDateTime = new Date(`${date}T${endTime}`);
+      
+      // Adicionar 15 minutos de tolerância
+      const toleranceStart = new Date(startDateTime.getTime() - 15 * 60000);
+      const toleranceEnd = new Date(endDateTime.getTime() + 15 * 60000);
+
+      // Verificar conflitos com sessões existentes
+      const conflictsResult = await db.execute(sql`
+        SELECT s.*, l.name as student_name
+        FROM sessions s
+        JOIN leads l ON s.lead_id = l.id
+        WHERE s.trainer_id = ${trainerId}
+        AND s.status = 'agendado'
+        AND DATE(s.start_time) = ${date}
+        AND (
+          (s.start_time BETWEEN ${toleranceStart.toISOString()} AND ${toleranceEnd.toISOString()})
+          OR 
+          (s.end_time BETWEEN ${toleranceStart.toISOString()} AND ${toleranceEnd.toISOString()})
+          OR
+          (s.start_time <= ${startDateTime.toISOString()} AND s.end_time >= ${endDateTime.toISOString()})
+        )
+      `);
+
+      const conflicts = [];
+      
+      if (conflictsResult.rows.length > 0) {
+        for (const conflict of conflictsResult.rows) {
+          const conflictRow = conflict as any;
+          conflicts.push({
+            type: 'trainer_busy',
+            message: `Professor já tem sessão agendada com ${conflictRow.student_name} das ${new Date(conflictRow.start_time as string).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} às ${new Date(conflictRow.end_time as string).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
+            suggestion: 'Considere agendar 15 minutos antes ou depois do horário conflitante.'
+          });
+        }
+      }
+
+      // Sugerir horários alternativos se houver conflitos
+      if (conflicts.length > 0) {
+        const suggestedTimes = [];
+        const timeSlots = [
+          "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", 
+          "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+          "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", 
+          "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
+          "18:00", "18:30", "19:00", "19:30", "20:00", "20:30"
+        ];
+
+        // Verificar horários disponíveis
+        for (const slot of timeSlots.slice(0, 5)) { // Limitar a 5 sugestões
+          const slotStart = new Date(`${date}T${slot}`);
+          const slotEnd = new Date(slotStart.getTime() + (endDateTime.getTime() - startDateTime.getTime()));
+          
+          const slotConflictResult = await db.execute(sql`
+            SELECT COUNT(*) as count
+            FROM sessions s
+            WHERE s.trainer_id = ${trainerId}
+            AND s.status = 'agendado'
+            AND DATE(s.start_time) = ${date}
+            AND (
+              (s.start_time BETWEEN ${slotStart.toISOString()} AND ${slotEnd.toISOString()})
+              OR 
+              (s.end_time BETWEEN ${slotStart.toISOString()} AND ${slotEnd.toISOString()})
+              OR
+              (s.start_time <= ${slotStart.toISOString()} AND s.end_time >= ${slotEnd.toISOString()})
+            )
+          `);
+
+          if (parseInt((slotConflictResult.rows[0] as any).count) === 0) {
+            suggestedTimes.push({
+              start: slot,
+              end: slotEnd.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+            });
+          }
+        }
+
+        if (suggestedTimes.length > 0) {
+          conflicts.push({
+            type: 'suggestion',
+            message: `Horários disponíveis: ${suggestedTimes.map(t => `${t.start}-${t.end}`).join(', ')}`,
+          });
+        }
+      }
+
+      res.json({ conflicts });
+    } catch (error) {
+      console.error('Erro ao verificar conflitos:', error);
+      res.status(500).json({ message: "Erro ao verificar conflitos" });
     }
   });
 
