@@ -56,6 +56,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Remover integração Google Calendar
   // app.use('/api/oauth', oauthRoutes);
 
+  // Get all sessions
+  app.get('/api/sessions', async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT 
+          id,
+          start_time as "startTime",
+          end_time as "endTime", 
+          location,
+          source,
+          notes,
+          status,
+          lead_id as "leadId",
+          trainer_id as "trainerId",
+          value,
+          service
+        FROM sessions 
+        ORDER BY start_time ASC
+      `);
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Erro ao buscar sessões:', error);
+      res.status(500).json({ message: "Erro ao buscar sessões" });
+    }
+  });
+
+  // Get all trainers
+  app.get('/api/trainers', async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT id, name, email, specialties, source
+        FROM trainers 
+        ORDER BY name ASC
+      `);
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Erro ao buscar professores:', error);
+      res.status(500).json({ message: "Erro ao buscar professores" });
+    }
+  });
+
+  // Create new session
+  app.post('/api/sessions', async (req, res) => {
+    try {
+      const { startTime, endTime, location, source, leadId, trainerId, notes, status } = req.body;
+      
+      const result = await db.execute(sql`
+        INSERT INTO sessions (start_time, end_time, location, source, lead_id, trainer_id, notes, status)
+        VALUES (${startTime}, ${endTime}, ${location}, ${source}, ${leadId}, ${trainerId}, ${notes || null}, ${status || 'scheduled'})
+        RETURNING id
+      `);
+      
+      res.json({ id: result.rows[0].id, message: 'Sessão criada com sucesso' });
+    } catch (error) {
+      console.error('Erro ao criar sessão:', error);
+      res.status(500).json({ message: "Erro ao criar sessão" });
+    }
+  });
+
+  // Update session
+  app.patch('/api/sessions/:id', async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.id);
+      const updates = req.body;
+      
+      // Build dynamic update query
+      const updateFields = [];
+      const values = [];
+      
+      if (updates.startTime) {
+        updateFields.push('start_time = $' + (values.length + 1));
+        values.push(updates.startTime);
+      }
+      if (updates.endTime) {
+        updateFields.push('end_time = $' + (values.length + 1));
+        values.push(updates.endTime);
+      }
+      if (updates.location) {
+        updateFields.push('location = $' + (values.length + 1));
+        values.push(updates.location);
+      }
+      if (updates.status) {
+        updateFields.push('status = $' + (values.length + 1));
+        values.push(updates.status);
+      }
+      if (updates.notes !== undefined) {
+        updateFields.push('notes = $' + (values.length + 1));
+        values.push(updates.notes);
+      }
+      
+      if (updateFields.length === 0) {
+        return res.status(400).json({ message: 'Nenhum campo para atualizar' });
+      }
+      
+      updateFields.push('updated_at = NOW()');
+      values.push(sessionId);
+      
+      const query = `UPDATE sessions SET ${updateFields.join(', ')} WHERE id = $${values.length}`;
+      
+      await db.execute(sql.raw(query, values));
+      
+      res.json({ message: 'Sessão atualizada com sucesso' });
+    } catch (error) {
+      console.error('Erro ao atualizar sessão:', error);
+      res.status(500).json({ message: "Erro ao atualizar sessão" });
+    }
+  });
+
   // Get all leads
   app.get('/api/leads', async (req, res) => {
     try {

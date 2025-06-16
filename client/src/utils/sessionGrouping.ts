@@ -43,33 +43,43 @@ function detectRecurrencePattern(sessions: Session[]): string | null {
     new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
   );
 
+  // Filtrar apenas sessões recentes (últimos 6 meses) para evitar interferência de dados antigos
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  
+  const recentSessions = sortedSessions.filter(session => 
+    new Date(session.startTime) >= sixMonthsAgo
+  );
+
+  if (recentSessions.length < 3) return null;
+
   // Verificar padrão semanal
   const weeklyIntervals = [];
-  for (let i = 1; i < sortedSessions.length; i++) {
+  for (let i = 1; i < recentSessions.length; i++) {
     const daysDiff = differenceInDays(
-      new Date(sortedSessions[i].startTime),
-      new Date(sortedSessions[i - 1].startTime)
+      new Date(recentSessions[i].startTime),
+      new Date(recentSessions[i - 1].startTime)
     );
     weeklyIntervals.push(daysDiff);
   }
 
-  // Se a maioria dos intervalos são de 7 dias (±1 dia de tolerância)
-  const weeklyCount = weeklyIntervals.filter(diff => Math.abs(diff - 7) <= 1).length;
-  if (weeklyCount >= weeklyIntervals.length * 0.7) {
-    const dayOfWeek = format(new Date(sortedSessions[0].startTime), 'EEEE', { locale: ptBR });
+  // Se a maioria dos intervalos são de 7 dias (±2 dias de tolerância)
+  const weeklyCount = weeklyIntervals.filter(diff => Math.abs(diff - 7) <= 2).length;
+  if (weeklyCount >= weeklyIntervals.length * 0.6) {
+    const dayOfWeek = format(new Date(recentSessions[0].startTime), 'EEEE', { locale: ptBR });
     return `Toda ${dayOfWeek}`;
   }
 
   // Verificar padrão quinzenal
-  const biweeklyCount = weeklyIntervals.filter(diff => Math.abs(diff - 14) <= 2).length;
-  if (biweeklyCount >= weeklyIntervals.length * 0.7) {
-    const dayOfWeek = format(new Date(sortedSessions[0].startTime), 'EEEE', { locale: ptBR });
+  const biweeklyCount = weeklyIntervals.filter(diff => Math.abs(diff - 14) <= 3).length;
+  if (biweeklyCount >= weeklyIntervals.length * 0.6) {
+    const dayOfWeek = format(new Date(recentSessions[0].startTime), 'EEEE', { locale: ptBR });
     return `A cada 15 dias (${dayOfWeek})`;
   }
 
   // Verificar padrão mensal (aproximadamente 30 dias)
-  const monthlyCount = weeklyIntervals.filter(diff => Math.abs(diff - 30) <= 5).length;
-  if (monthlyCount >= weeklyIntervals.length * 0.7) {
+  const monthlyCount = weeklyIntervals.filter(diff => Math.abs(diff - 30) <= 7).length;
+  if (monthlyCount >= weeklyIntervals.length * 0.6) {
     return 'Mensalmente';
   }
 
@@ -96,6 +106,7 @@ function groupSimilarSessions(sessions: Session[]): Session[][] {
         firstSession.leadId === session.leadId &&
         firstSession.trainerId === session.trainerId &&
         firstSession.location === session.location &&
+        firstSession.source === session.source &&
         firstTimeSlot === timeSlot
       );
     });
