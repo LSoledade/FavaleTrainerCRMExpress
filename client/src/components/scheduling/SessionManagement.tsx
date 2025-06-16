@@ -30,6 +30,7 @@ interface Session {
 
 export function SessionManagement() {
   const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -37,6 +38,18 @@ export function SessionManagement() {
   const { data: sessions = [], isLoading, error, refetch } = useQuery({
     queryKey: ['/api/sessions'],
     queryFn: () => fetch('/api/sessions').then(res => res.json())
+  });
+
+  // Fetch leads for the form
+  const { data: leads = [] } = useQuery({
+    queryKey: ['/api/leads'],
+    queryFn: () => fetch('/api/leads').then(res => res.json())
+  });
+
+  // Fetch trainers for the form
+  const { data: trainers = [] } = useQuery({
+    queryKey: ['/api/trainers'],
+    queryFn: () => fetch('/api/trainers').then(res => res.json())
   });
 
   // Refresh sessions function
@@ -56,13 +69,66 @@ export function SessionManagement() {
     }
   };
 
-  const handleAddSessionSuccess = () => {
+  const handleFormSubmit = async (formData: any) => {
+    setIsSubmitting(true);
+    try {
+      // Combine date and time into proper DateTime objects
+      const startDateTime = new Date(`${formData.date.toISOString().split('T')[0]}T${formData.startTime}:00`);
+      const endDateTime = new Date(`${formData.date.toISOString().split('T')[0]}T${formData.endTime}:00`);
+
+      const sessionData = {
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
+        leadId: formData.leadId,
+        trainerId: formData.trainerId,
+        location: formData.location,
+        source: formData.source,
+        value: formData.value,
+        service: formData.service,
+        notes: formData.notes || '',
+        status: 'agendado',
+        recurrenceType: formData.recurrenceType,
+        recurrenceInterval: formData.recurrenceInterval,
+        recurrenceWeekDays: formData.recurrenceWeekDays,
+        recurrenceEndType: formData.recurrenceEndType,
+        recurrenceEndDate: formData.recurrenceEndDate?.toISOString(),
+        recurrenceEndCount: formData.recurrenceEndCount,
+      };
+
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sessionData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao criar sessão');
+      }
+
+      const result = await response.json();
+      
+      setFormDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/sessions'] });
+      
+      toast({
+        title: 'Sessão criada com sucesso',
+        description: result.recurring 
+          ? `${result.count} sessões foram agendadas com base na recorrência configurada.`
+          : 'A sessão foi agendada com sucesso.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao agendar',
+        description: 'Não foi possível agendar a sessão. Tente novamente.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFormCancel = () => {
     setFormDialogOpen(false);
-    queryClient.invalidateQueries({ queryKey: ['/api/sessions'] });
-    toast({
-      title: 'Sessão criada',
-      description: 'A sessão foi agendada com sucesso.',
-    });
   };
 
   return (
@@ -165,13 +231,14 @@ export function SessionManagement() {
 
       {/* Dialog para adicionar nova sessão */}
       <Dialog open={formDialogOpen} onOpenChange={setFormDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-gray-800 dark:text-white">
-              Agendar Nova Sessão
-            </DialogTitle>
-          </DialogHeader>
-          <NewSessionForm onSuccess={handleAddSessionSuccess} />
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 rounded-xl">
+          <NewSessionForm 
+            leads={leads}
+            trainers={trainers}
+            onSubmit={handleFormSubmit}
+            onCancel={handleFormCancel}
+            isLoading={isSubmitting}
+          />
         </DialogContent>
       </Dialog>
     </div>
