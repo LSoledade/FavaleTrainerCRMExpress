@@ -159,6 +159,9 @@ export const sessions = pgTable("sessions", {
   notes: text("notes"),
   status: text("status").default("agendado").notNull(), // agendado, concluído, cancelado, remarcado
   source: text("source").notNull(), // "Favale", "Pink" ou "FavalePink"
+  // Campos para sessões recorrentes
+  parentSessionId: integer("parent_session_id"), // ID da primeira sessão da série
+  recurrenceGroupId: text("recurrence_group_id"), // UUID para agrupar toda a série
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -203,14 +206,16 @@ export const sessionBaseValidationSchema = insertSessionSchema.extend({
   source: z.enum(["Favale", "Pink", "FavalePink"], {
     errorMap: () => ({ message: "Origem deve ser 'Favale', 'Pink' ou 'FavalePink'" })
   }),
+  parentSessionId: z.number().int().positive("ID da sessão pai inválido").optional(),
+  recurrenceGroupId: z.string().optional(),
 });
 
 // Validação adicional para a criação de sessões
 export const sessionValidationSchema = sessionBaseValidationSchema.refine(
   data => {
     // Verifica se a data de término é posterior à data de início
-    const startTime = new Date(data.startTime instanceof Date ? data.startTime : data.startTime);
-    const endTime = new Date(data.endTime instanceof Date ? data.endTime : data.endTime);
+    const startTime = data.startTime instanceof Date ? data.startTime : new Date(data.startTime as string);
+    const endTime = data.endTime instanceof Date ? data.endTime : new Date(data.endTime as string);
     return endTime > startTime;
   },
   {
