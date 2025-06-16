@@ -3,7 +3,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { SessionForm } from './SessionForm';
+import { NewSessionForm } from './NewSessionForm';
 import { format, addDays, setHours, setMinutes, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Plus, Clock, MapPin, User, ArrowLeft } from 'lucide-react';
@@ -285,7 +285,7 @@ export function SessionCalendar() {
               Preencha os dados para agendar uma nova sessão.
             </DialogDescription>
           </DialogHeader>
-          <SessionForm 
+          <NewSessionForm 
             defaultValues={{ date: date, startTime: '09:00', endTime: '10:00' }}
             onSuccess={() => {
               setDialogOpen(false);

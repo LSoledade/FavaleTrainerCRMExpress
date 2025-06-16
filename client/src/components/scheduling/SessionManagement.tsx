@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SessionTable } from './SessionTable';
-import { SessionForm } from './SessionForm';
+import { NewSessionForm } from './NewSessionForm';
 import { SessionReport } from './SessionReport';
 import { Plus, Calendar, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +25,6 @@ interface Session {
   studentName: string;
   trainerId: string;
   trainerName: string;
-  calendarEventId?: string;
 }
 
 export function SessionManagement() {
@@ -53,7 +52,6 @@ export function SessionManagement() {
           studentName: 'Carlos Oliveira',
           trainerId: '201',
           trainerName: 'André Silva',
-          calendarEventId: 'event123',
         },
         {
           id: 2,
@@ -79,7 +77,6 @@ export function SessionManagement() {
           studentName: 'João Pereira',
           trainerId: '201',
           trainerName: 'Gabriel Tonini',
-          calendarEventId: 'event456',
         },
       ]);
       setIsLoading(false);
@@ -213,7 +210,7 @@ export function SessionManagement() {
               Agendar Nova Sessão
             </DialogTitle>
           </DialogHeader>
-          <SessionForm onSuccess={handleAddSessionSuccess} />
+          <NewSessionForm onSuccess={handleAddSessionSuccess} />
         </DialogContent>
       </Dialog>
     </div>
