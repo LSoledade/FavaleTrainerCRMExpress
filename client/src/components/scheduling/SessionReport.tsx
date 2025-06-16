@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { CalendarIcon, Download, Printer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 
 type StudentOption = {
   id: string;

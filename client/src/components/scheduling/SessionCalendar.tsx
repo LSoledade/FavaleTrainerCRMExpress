@@ -34,64 +34,41 @@ export function SessionCalendar() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
-  // Mock data de sessões - a ser substituído por chamadas à API
-  const [sessions, setSessions] = useState<Session[]>([]);
+  // Fetch sessions from API
+  const { data: sessions = [], isLoading, error } = useQuery({
+    queryKey: ['/api/sessions'],
+    queryFn: () => fetch('/api/sessions').then(res => res.json())
+  });
 
-  useEffect(() => {
-    setIsLoading(true);
-    // Simulando carregamento de dados
-    setTimeout(() => {
-      setSessions([
-        {
-          id: 1,
-          startTime: setMinutes(setHours(new Date(), 9), 0),
-          endTime: setMinutes(setHours(new Date(), 10), 0),
-          location: 'Academia Central',
-          source: 'Favale',
-          notes: 'Foco em treinamento de força',
-          status: 'scheduled',
-          studentId: '101',
-          studentName: 'Carlos Oliveira',
-          trainerId: '201',
-          trainerName: 'Ana Silva',
-          calendarEventId: 'event123',
-        },
-        {
-          id: 2,
-          startTime: setMinutes(setHours(new Date(), 15), 0),
-          endTime: setMinutes(setHours(new Date(), 16), 0),
-          location: 'Estúdio Zona Norte',
-          source: 'Pink',
-          notes: 'Treino de cardio e flexibilidade',
-          status: 'scheduled',
-          studentId: '102',
-          studentName: 'Maria Santos',
-          trainerId: '202',
-          trainerName: 'Pedro Costa',
-        },
-        {
-          id: 3,
-          startTime: setMinutes(setHours(addDays(new Date(), 1), 10), 0),
-          endTime: setMinutes(setHours(addDays(new Date(), 1), 11), 0),
-          location: 'Academia Sul',
-          source: 'Favale',
-          status: 'scheduled',
-          studentId: '103',
-          studentName: 'João Pereira',
-          trainerId: '201',
-          trainerName: 'Ana Silva',
-          calendarEventId: 'event456',
-        },
-      ]);
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+  // Fetch leads for student names
+  const { data: leads = [] } = useQuery({
+    queryKey: ['/api/leads'],
+    queryFn: () => fetch('/api/leads').then(res => res.json())
+  });
+
+  // Fetch trainers for trainer names
+  const { data: trainers = [] } = useQuery({
+    queryKey: ['/api/trainers'],
+    queryFn: () => fetch('/api/trainers').then(res => res.json())
+  });
+
+  // Helper function to get student name by leadId
+  const getStudentName = (leadId: number) => {
+    const lead = leads.find((l: any) => l.id === leadId);
+    return lead?.name || 'Estudante';
+  };
+
+  // Helper function to get trainer name by trainerId
+  const getTrainerName = (trainerId: number) => {
+    const trainer = trainers.find((t: any) => t.id === trainerId);
+    return trainer?.name || 'Professor';
+  };
 
   // Filtrar sessões para o dia selecionado
-  const sessionsForSelectedDay = sessions.filter(session => 
+  const sessionsForSelectedDay = sessions.filter((session: Session) => 
     isSameDay(new Date(session.startTime), date)
   );
 
@@ -243,10 +220,10 @@ export function SessionCalendar() {
                           
                           <div className="flex items-center gap-2 mb-2">
                             <Avatar className="h-6 w-6 bg-gray-200">
-                              <div className="text-xs">{session.studentName.charAt(0)}</div>
+                              <div className="text-xs">{getStudentName(session.leadId).charAt(0)}</div>
                             </Avatar>
                             <p className="text-gray-700 dark:text-gray-300">
-                              {session.studentName} com <span className="font-medium">{session.trainerName}</span>
+                              {getStudentName(session.leadId)} com <span className="font-medium">{getTrainerName(session.trainerId)}</span>
                             </p>
                           </div>
                           
@@ -329,9 +306,9 @@ export function SessionCalendar() {
                   <p className="text-gray-500 dark:text-gray-400 text-sm">Aluno</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Avatar className="h-8 w-8 bg-gray-200">
-                      <div className="text-xs">{selectedSession.studentName.charAt(0)}</div>
+                      <div className="text-xs">{getStudentName(selectedSession.leadId).charAt(0)}</div>
                     </Avatar>
-                    <p className="font-medium text-gray-800 dark:text-white">{selectedSession.studentName}</p>
+                    <p className="font-medium text-gray-800 dark:text-white">{getStudentName(selectedSession.leadId)}</p>
                   </div>
                 </div>
 
@@ -339,9 +316,9 @@ export function SessionCalendar() {
                   <p className="text-gray-500 dark:text-gray-400 text-sm">Professor</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Avatar className="h-8 w-8 bg-gray-200">
-                      <div className="text-xs">{selectedSession.trainerName.charAt(0)}</div>
+                      <div className="text-xs">{getTrainerName(selectedSession.trainerId).charAt(0)}</div>
                     </Avatar>
-                    <p className="font-medium text-gray-800 dark:text-white">{selectedSession.trainerName}</p>
+                    <p className="font-medium text-gray-800 dark:text-white">{getTrainerName(selectedSession.trainerId)}</p>
                   </div>
                 </div>
               </div>
