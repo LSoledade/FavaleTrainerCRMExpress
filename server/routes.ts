@@ -239,26 +239,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const insertedSessions = [];
 
       for (const session of sessions) {
-        const result = await db.execute(sql`
-          INSERT INTO sessions (
-            start_time, end_time, location, source, lead_id, trainer_id, 
-            notes, status, value, service, recurrence_type, recurrence_interval,
-            recurrence_week_days, recurrence_end_type, recurrence_end_date, 
-            recurrence_end_count, recurrence_group_id, is_recurrence_parent,
-            parent_session_id
-          )
-          VALUES (
-            ${session.startTime}, ${session.endTime}, ${location}, ${source}, 
-            ${leadId}, ${trainerId}, ${notes || null}, ${status || 'agendado'}, 
-            ${value}, ${service}, ${recurrenceType}, ${recurrenceInterval},
-            ${recurrenceWeekDays || null}, ${recurrenceEndType}, ${recurrenceEndDate}, 
-            ${recurrenceEndCount}, ${recurrenceGroupId}, ${session.isParent},
-            ${parentSessionId}
-          )
-          RETURNING id
-        `);
+        const insertData = {
+          startTime: session.startTime,
+          endTime: session.endTime,
+          location,
+          source,
+          leadId,
+          trainerId,
+          notes,
+          status: status || 'agendado',
+          value,
+          service,
+          recurrenceType,
+          recurrenceInterval,
+          recurrenceWeekDays,
+          recurrenceEndType,
+          recurrenceEndDate,
+          recurrenceEndCount,
+          recurrenceGroupId,
+          isRecurrenceParent: session.isParent,
+          parentSessionId
+        };
+
+        const [result] = await db.insert(sessions).values(insertData).returning({ id: sessions.id });
         
-        const sessionId = result.rows[0].id;
+        const sessionId = result.id;
         insertedSessions.push(sessionId);
         
         if (session.isParent) {
