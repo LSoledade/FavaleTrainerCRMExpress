@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage, type IStorage } from "./storage";
 import { db } from "./db";
 import { 
-  leads,
+  leads, sessions,
   insertLeadSchema, leadValidationSchema, whatsappMessageValidationSchema,
   taskValidationSchema, taskCommentValidationSchema,
   type Session, type Student, type WhatsappMessage
@@ -234,36 +234,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (sessionCount > 365) break;
       }
 
-      // Insert all sessions
+      // Insert all sessions using SQL
       let parentSessionId = null;
       const insertedSessions = [];
 
       for (const session of sessions) {
-        const insertData = {
-          startTime: session.startTime,
-          endTime: session.endTime,
-          location,
-          source,
-          leadId,
-          trainerId,
-          notes,
-          status: status || 'agendado',
-          value,
-          service,
-          recurrenceType,
-          recurrenceInterval,
-          recurrenceWeekDays,
-          recurrenceEndType,
-          recurrenceEndDate,
-          recurrenceEndCount,
-          recurrenceGroupId,
-          isRecurrenceParent: session.isParent,
-          parentSessionId
-        };
-
-        const [result] = await db.insert(sessions).values(insertData).returning({ id: sessions.id });
+        const result = await db.execute(sql`
+          INSERT INTO sessions (
+            start_time, end_time, location, source, lead_id, trainer_id, 
+            notes, status, value, service, recurrence_type, recurrence_interval,
+            recurrence_week_days, recurrence_end_type, recurrence_end_date, 
+            recurrence_end_count, recurrence_group_id, is_recurrence_parent,
+            parent_session_id
+          )
+          VALUES (
+            ${session.startTime}, ${session.endTime}, ${location}, ${source}, 
+            ${leadId}, ${trainerId}, ${notes}, ${status || 'agendado'}, 
+            ${value}, ${service}, ${recurrenceType}, ${recurrenceInterval},
+            ${recurrenceWeekDays ? JSON.stringify(recurrenceWeekDays) : null}, ${recurrenceEndType}, ${recurrenceEndDate}, 
+            ${recurrenceEndCount}, ${recurrenceGroupId}, ${session.isParent},
+            ${parentSessionId}
+          )
+          RETURNING id
+        `);
         
-        const sessionId = result.id;
+        const sessionId = result.rows[0].id;
         insertedSessions.push(sessionId);
         
         if (session.isParent) {
