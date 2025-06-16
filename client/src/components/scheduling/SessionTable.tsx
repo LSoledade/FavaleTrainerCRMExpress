@@ -305,8 +305,8 @@ export function SessionTable({ sessions, onRefresh }: SessionTableProps) {
                 startTime: format(new Date(selectedSession.startTime), 'HH:mm'),
                 endTime: format(new Date(selectedSession.endTime), 'HH:mm'),
                 location: selectedSession.location,
-                source: selectedSession.source,
-                studentId: selectedSession.studentId,
+                source: selectedSession.source as 'Favale' | 'Pink',
+                leadId: selectedSession.leadId,
                 trainerId: selectedSession.trainerId,
                 notes: selectedSession.notes || '',
               }}
