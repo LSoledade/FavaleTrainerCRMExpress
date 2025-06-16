@@ -15,6 +15,10 @@ interface Session {
   trainerId: number;
   value?: number;
   service?: string;
+  recurrenceType?: string;
+  recurrenceGroupId?: string;
+  isRecurrenceParent?: boolean;
+  parentSessionId?: number;
 }
 
 interface RecurringGroup {
@@ -129,9 +133,76 @@ export function groupSessions(
   getStudentName: (leadId: number) => string,
   getTrainerName: (trainerId: number) => string
 ): GroupedSessions {
-  const sessionGroups = groupSimilarSessions(sessions);
   const recurring: RecurringGroup[] = [];
   const individual: Session[] = [];
+
+  // Group by recurrenceGroupId
+  const recurrenceGroups = new Map<string, Session[]>();
+  
+  for (const session of sessions) {
+    if (session.recurrenceGroupId && session.recurrenceType !== 'none') {
+      if (!recurrenceGroups.has(session.recurrenceGroupId)) {
+        recurrenceGroups.set(session.recurrenceGroupId, []);
+      }
+      recurrenceGroups.get(session.recurrenceGroupId)!.push(session);
+    } else {
+      individual.push(session);
+    }
+  }
+
+  // Create recurring groups from recurrence groups
+  for (const [groupId, groupSessions] of recurrenceGroups) {
+    if (groupSessions.length > 1) {
+      const sortedSessions = groupSessions.sort((a, b) => 
+        new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+      );
+
+      const firstSession = sortedSessions[0];
+      const timeSlot = `${format(new Date(firstSession.startTime), 'HH:mm')} - ${format(new Date(firstSession.endTime), 'HH:mm')}`;
+      
+      // Generate pattern based on recurrence type
+      let pattern = '';
+      switch (firstSession.recurrenceType) {
+        case 'daily':
+          pattern = 'Diariamente';
+          break;
+        case 'weekly':
+          const dayOfWeek = format(new Date(firstSession.startTime), 'EEEE', { locale: ptBR });
+          pattern = `Toda ${dayOfWeek}`;
+          break;
+        case 'monthly':
+          pattern = 'Mensalmente';
+          break;
+        case 'yearly':
+          pattern = 'Anualmente';
+          break;
+        default:
+          pattern = 'Recorrente';
+      }
+      
+      const recurringGroup: RecurringGroup = {
+        pattern,
+        sessions: sortedSessions,
+        studentName: getStudentName(firstSession.leadId),
+        trainerName: getTrainerName(firstSession.trainerId),
+        source: firstSession.source,
+        location: firstSession.location,
+        timeSlot,
+        nextSession: sortedSessions
+          .filter(s => new Date(s.startTime) > new Date() && s.status === 'scheduled')
+          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0]
+      };
+
+      recurring.push(recurringGroup);
+    } else {
+      individual.push(...groupSessions);
+    }
+  }
+
+  // For sessions without recurrence data, try to detect patterns (legacy support)
+  const unGroupedSessions = individual.filter(s => !s.recurrenceGroupId);
+  const sessionGroups = groupSimilarSessions(unGroupedSessions);
+  individual = individual.filter(s => s.recurrenceGroupId); // Keep only sessions with recurrence data
 
   for (const group of sessionGroups) {
     if (group.length >= 3) {
