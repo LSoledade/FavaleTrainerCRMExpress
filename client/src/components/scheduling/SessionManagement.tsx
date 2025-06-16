@@ -204,7 +204,7 @@ export function SessionManagement() {
 
       {/* Dialog para adicionar nova sessão */}
       <Dialog open={formDialogOpen} onOpenChange={setFormDialogOpen}>
-        <DialogContent className="sm:max-w-[650px] bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 rounded-xl">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-gray-800 dark:text-white">
               Agendar Nova Sessão

@@ -295,7 +295,7 @@ export function NewSessionForm({ defaultValues, sessionId, onSuccess }: SessionF
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         {/* Origem */}
         <FormField
           control={form.control}
@@ -444,7 +444,7 @@ export function NewSessionForm({ defaultValues, sessionId, onSuccess }: SessionF
         />
 
         {/* Data e Horários */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-3">
           <FormField
             control={form.control}
             name="date"
@@ -562,7 +562,7 @@ export function NewSessionForm({ defaultValues, sessionId, onSuccess }: SessionF
         )}
 
         {/* Local, Valor e Serviço */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-3">
           <FormField
             control={form.control}
             name="location"
@@ -637,8 +637,8 @@ export function NewSessionForm({ defaultValues, sessionId, onSuccess }: SessionF
 
         {/* Configurações de Recorrência */}
         {!form.watch('isOneTime') && (
-          <div className="space-y-4 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800/50">
-            <h3 className="font-medium">Configurações de Recorrência</h3>
+          <div className="space-y-3 p-3 border rounded-lg bg-gray-50 dark:bg-gray-800/50">
+            <h3 className="text-sm font-medium">Configurações de Recorrência</h3>
             
             <FormField
               control={form.control}
