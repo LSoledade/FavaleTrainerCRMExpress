@@ -328,6 +328,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all sessions
+  app.get('/api/sessions', async (req, res) => {
+    try {
+      const sessions = await storage.getSessions();
+      res.json(sessions);
+    } catch (error) {
+      console.error('Erro ao buscar sessões:', error);
+      res.status(500).json({ message: "Erro ao buscar sessões" });
+    }
+  });
+
+  // Create new session
+  app.post('/api/sessions', async (req, res) => {
+    try {
+      const sessionData = req.body;
+      
+      // Gerar sessões recorrentes se necessário
+      if (!sessionData.isOneTime && sessionData.weeklyFrequency && sessionData.weekDays) {
+        const recurrenceGroupId = sessionData.recurrenceGroupId || crypto.randomUUID();
+        const sessions = [];
+        
+        // Gerar sessões para as próximas 4 semanas
+        for (let week = 0; week < 4; week++) {
+          for (const dayName of sessionData.weekDays) {
+            const dayIndex = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].indexOf(dayName);
+            const sessionDate = new Date(sessionData.startTime);
+            sessionDate.setDate(sessionDate.getDate() + (week * 7) + (dayIndex - sessionDate.getDay()));
+            
+            const endDate = new Date(sessionData.endTime);
+            endDate.setDate(endDate.getDate() + (week * 7) + (dayIndex - endDate.getDay()));
+            
+            const session = await storage.createSession({
+              ...sessionData,
+              startTime: sessionDate,
+              endTime: endDate,
+              recurrenceGroupId,
+              parentSessionId: week === 0 ? null : sessions[0]?.id || null
+            });
+            
+            sessions.push(session);
+          }
+        }
+        
+        res.status(201).json({ sessions, message: `${sessions.length} sessões criadas com sucesso` });
+      } else {
+        // Sessão avulsa
+        const session = await storage.createSession(sessionData);
+        res.status(201).json(session);
+      }
+    } catch (error) {
+      console.error('Erro ao criar sessão:', error);
+      res.status(500).json({ message: "Erro ao criar sessão" });
+    }
+  });
+
+  // Update session
+  app.patch('/api/sessions/:id', async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.id);
+      const updates = req.body;
+      
+      const updatedSession = await storage.updateSession(sessionId, updates);
+      
+      if (!updatedSession) {
+        return res.status(404).json({ message: "Sessão não encontrada" });
+      }
+      
+      res.json(updatedSession);
+    } catch (error) {
+      console.error('Erro ao atualizar sessão:', error);
+      res.status(500).json({ message: "Erro ao atualizar sessão" });
+    }
+  });
+
+  // Delete session
+  app.delete('/api/sessions/:id', async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.id);
+      const deleted = await storage.deleteSession(sessionId);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Sessão não encontrada" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error('Erro ao deletar sessão:', error);
+      res.status(500).json({ message: "Erro ao deletar sessão" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
