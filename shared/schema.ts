@@ -25,7 +25,7 @@ export const trainers = pgTable("trainers", {
   email: text("email").notNull().unique(),
   phone: text("phone"),
   specialties: text("specialties").array(),
-  calendarId: text("calendar_id"), // ID do calendário no Google Calendar
+  source: text("source").notNull(), // "Favale", "Pink", ou "FavalePink"
   active: boolean("active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -42,7 +42,9 @@ export const trainerValidationSchema = insertTrainerSchema.extend({
   email: z.string().min(1, "O e-mail é obrigatório").email("E-mail inválido"),
   phone: z.string().optional(),
   specialties: z.array(z.string()).optional(),
-  calendarId: z.string().optional(),
+  source: z.enum(["Favale", "Pink", "FavalePink"], {
+    errorMap: () => ({ message: "Origem deve ser 'Favale', 'Pink' ou 'FavalePink'" })
+  }),
   active: z.boolean().optional(),
 });
 
@@ -146,13 +148,17 @@ export const sessions = pgTable("sessions", {
   id: serial("id").primaryKey(),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
-  studentId: integer("student_id").references(() => students.id).notNull(),
+  leadId: integer("lead_id").references(() => leads.id).notNull(), // Referência direta ao lead (aluno)
   trainerId: integer("trainer_id").references(() => trainers.id).notNull(),
   location: text("location").notNull(), // Endereço do treino
+  value: integer("value").notNull(), // Valor em centavos (R$)
+  service: text("service").notNull(), // Tipo do serviço
+  isOneTime: boolean("is_one_time").default(false).notNull(), // Sessão avulsa
+  weeklyFrequency: integer("weekly_frequency"), // Quantas vezes na semana (apenas se não for avulsa)
+  weekDays: text("week_days").array(), // Dias da semana (apenas se não for avulsa)
   notes: text("notes"),
   status: text("status").default("agendado").notNull(), // agendado, concluído, cancelado, remarcado
-  source: text("source").notNull(), // "Favale" ou "Pink"
-  googleEventId: text("google_event_id"), // ID do evento no Google Calendar
+  source: text("source").notNull(), // "Favale", "Pink" ou "FavalePink"
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -182,13 +188,21 @@ export const sessionBaseValidationSchema = insertSessionSchema.extend({
   ])).refine(date => date instanceof Date && !isNaN(date.getTime()), {
     message: "Horário de término precisa ser uma data válida"
   }),
-  studentId: z.number().int().positive("ID do aluno inválido"),
+  leadId: z.number().int().positive("ID do aluno inválido"),
   trainerId: z.number().int().positive("ID do professor inválido"),
   location: z.string().min(1, "O local é obrigatório"),
+  value: z.number().int().positive("O valor deve ser maior que zero"),
+  service: z.string().min(1, "O serviço é obrigatório"),
+  isOneTime: z.boolean().optional(),
+  weeklyFrequency: z.number().int().positive("Frequência semanal deve ser um número positivo").optional(),
+  weekDays: z.array(z.enum(["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"])).optional(),
   notes: z.string().optional(),
-  status: z.string().min(1, "O status é obrigatório"),
-  source: z.string().min(1, "A origem é obrigatória"),
-  googleEventId: z.string().optional(),
+  status: z.enum(["agendado", "concluído", "cancelado", "remarcado"], {
+    errorMap: () => ({ message: "Status deve ser 'agendado', 'concluído', 'cancelado' ou 'remarcado'" })
+  }),
+  source: z.enum(["Favale", "Pink", "FavalePink"], {
+    errorMap: () => ({ message: "Origem deve ser 'Favale', 'Pink' ou 'FavalePink'" })
+  }),
 });
 
 // Validação adicional para a criação de sessões
