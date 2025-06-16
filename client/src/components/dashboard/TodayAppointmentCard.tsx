@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { format, isToday, setHours, setMinutes } from "date-fns";
+import { format, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarClock, MapPin, User, Clock } from "lucide-react";
 import { Link } from "wouter";
@@ -8,23 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { useState, useEffect } from "react";
 
 type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show';
 
 interface Session {
   id: number;
-  startTime: Date;
-  endTime: Date;
-  studentId: string;
-  studentName: string;
-  trainerId: string;
-  trainerName: string;
+  startTime: string;
+  endTime: string;
+  leadId: number;
+  trainerId: number;
   location: string;
   status: SessionStatus;
-  source: 'Favale' | 'Pink';
+  source: 'Favale' | 'Pink' | 'FavalePink';
   notes?: string;
-  calendarEventId?: string;
+  value?: number;
+  service?: string;
 }
 
 interface TodayAppointmentCardProps {
@@ -32,66 +30,39 @@ interface TodayAppointmentCardProps {
 }
 
 export default function TodayAppointmentCard({ className = "" }: TodayAppointmentCardProps) {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Dados mockados para demonstração
-  useEffect(() => {
-    setIsLoading(true);
-    // Simulando carregamento de dados
-    setTimeout(() => {
-      setSessions([
-        {
-          id: 1,
-          startTime: setMinutes(setHours(new Date(), 9), 0),
-          endTime: setMinutes(setHours(new Date(), 10), 0),
-          location: 'Academia Central',
-          source: 'Favale',
-          notes: 'Foco em treinamento de força',
-          status: 'scheduled',
-          studentId: '101',
-          studentName: 'Carlos Oliveira',
-          trainerId: '201',
-          trainerName: 'Ana Silva',
-          calendarEventId: 'event123',
-        },
-        {
-          id: 2,
-          startTime: setMinutes(setHours(new Date(), 15), 0),
-          endTime: setMinutes(setHours(new Date(), 16), 0),
-          location: 'Estúdio Zona Norte',
-          source: 'Pink',
-          notes: 'Treino de cardio e flexibilidade',
-          status: 'scheduled',
-          studentId: '102',
-          studentName: 'Maria Santos',
-          trainerId: '202',
-          trainerName: 'Pedro Costa',
-        },
-        {
-          id: 4,
-          startTime: setMinutes(setHours(new Date(), 17), 30),
-          endTime: setMinutes(setHours(new Date(), 18), 30),
-          location: 'Condomínio Green Parks',
-          source: 'Pink',
-          notes: 'Sessão de alongamento e mobilidade',
-          status: 'scheduled',
-          studentId: '104',
-          studentName: 'Juliana Mendes',
-          trainerId: '203',
-          trainerName: 'Fernanda Lima',
-        },
-      ]);
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+  // Fetch sessions from API
+  const { data: sessions = [], isLoading, error } = useQuery({
+    queryKey: ['/api/sessions'],
+    queryFn: () => fetch('/api/sessions').then(res => res.json())
+  });
 
-  // Filtrar sessões para hoje e ordená-las por horário
+  // Fetch leads for student names
+  const { data: leads = [] } = useQuery({
+    queryKey: ['/api/leads'],
+    queryFn: () => fetch('/api/leads').then(res => res.json())
+  });
+
+  // Fetch trainers for trainer names
+  const { data: trainers = [] } = useQuery({
+    queryKey: ['/api/trainers'],
+    queryFn: () => fetch('/api/trainers').then(res => res.json())
+  });
+
+  // Helper functions to get names from IDs
+  const getStudentName = (leadId: number) => {
+    const lead = leads.find((l: any) => l.id === leadId);
+    return lead?.name || 'Estudante';
+  };
+
+  const getTrainerName = (trainerId: number) => {
+    const trainer = trainers.find((t: any) => t.id === trainerId);
+    return trainer?.name || 'Professor';
+  };
+
+  // Filter sessions for today only and sort by time
   const todaySessions = sessions
-    ? sessions
-        .filter(session => isToday(new Date(session.startTime)))
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-    : [];
+    .filter((session: any) => isToday(new Date(session.startTime)))
+    .sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
   const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase();
@@ -146,51 +117,54 @@ export default function TodayAppointmentCard({ className = "" }: TodayAppointmen
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-20 w-full" />
           </div>
-        ) : todaySessions.length > 0 ? (
-          <div className="space-y-3 sm:space-y-4">
-            {todaySessions.map((session) => (
-              <div 
-                key={session.id} 
-                className={`bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-gray-700/50 ${
-                  session.source === 'Favale' ? 'border-l-blue-500' : 'border-l-pink-500'
-                } border-l-4 rounded-lg p-3 shadow-sm hover:shadow-md transition-all duration-200 hover-lift-sm group`}
-              >
-                <div className="flex justify-between mb-2">
+        ) : todaySessions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-32 text-center text-gray-500 dark:text-gray-400">
+            <CalendarClock className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-sm">Nenhum agendamento para hoje</p>
+            <Link href="/agendamentos">
+              <Button variant="outline" size="sm" className="mt-2 text-xs">
+                Agendar Sessão
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {todaySessions.map((session: Session) => (
+              <div key={session.id} className={`p-3 rounded-lg border transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50 ${session.source === 'Favale' ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-pink-500'}`}>
+                <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-gray-400 dark:text-gray-300" />
-                    <span className="font-medium text-gray-800 dark:text-white">
-                      {format(new Date(session.startTime), 'HH:mm', { locale: ptBR })} - 
-                      {format(new Date(session.endTime), 'HH:mm', { locale: ptBR })}
+                    <Clock className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {format(new Date(session.startTime), 'HH:mm')} - {format(new Date(session.endTime), 'HH:mm')}
                     </span>
                   </div>
                   {getStatusBadge(session.status)}
                 </div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <User className="h-4 w-4 text-gray-400 dark:text-gray-300" />
-                  <span className="text-gray-700 dark:text-gray-200 truncate">{session.studentName}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-gray-400 dark:text-gray-300" />
-                  <span className="text-gray-600 dark:text-gray-300 text-sm truncate">
-                    {session.location}
+                
+                <div className="flex items-center gap-2 mb-1">
+                  <User className="h-3.5 w-3.5 text-gray-400" />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {getStudentName(session.leadId)} com {getTrainerName(session.trainerId)}
                   </span>
                 </div>
+                
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {session.location}
+                  </span>
+                  <Badge variant="outline" className={`ml-auto text-xs ${session.source === 'Favale' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-pink-50 text-pink-600 border-pink-200'}`}>
+                    {session.source}
+                  </Badge>
+                </div>
+                
+                {session.notes && (
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
+                    {session.notes}
+                  </div>
+                )}
               </div>
             ))}
-          </div>
-        ) : (
-          <div className="h-full flex flex-col justify-center items-center py-6 text-muted-foreground">
-            <div className="p-4 rounded-full bg-gray-50 dark:bg-gray-700/30 mb-3">
-              <CalendarClock className="h-6 w-6 text-gray-400 dark:text-gray-500" />
-            </div>
-            <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-2">
-              Não há agendamentos para hoje
-            </p>
-            <Link href="/agendamentos">
-              <Button variant="outline" size="sm" className="mt-2">
-                Gerenciar Agendamentos
-              </Button>
-            </Link>
           </div>
         )}
       </div>

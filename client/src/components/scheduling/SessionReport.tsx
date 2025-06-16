@@ -57,83 +57,99 @@ export function SessionReport() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   
-  // Mock data de estudantes
-  const students: StudentOption[] = [
-    { id: '101', name: 'Carlos Oliveira', source: 'Favale' },
-    { id: '102', name: 'Maria Santos', source: 'Pink' },
-    { id: '103', name: 'João Pereira', source: 'Favale' },
-    { id: '104', name: 'Rita Mendes', source: 'Pink' },
-  ];
+  // Fetch real data from APIs
+  const { data: sessions = [] } = useQuery({
+    queryKey: ['/api/sessions'],
+    queryFn: () => fetch('/api/sessions').then(res => res.json())
+  });
+
+  const { data: leads = [] } = useQuery({
+    queryKey: ['/api/leads'],
+    queryFn: () => fetch('/api/leads').then(res => res.json())
+  });
+
+  const { data: trainers = [] } = useQuery({
+    queryKey: ['/api/trainers'],
+    queryFn: () => fetch('/api/trainers').then(res => res.json())
+  });
+
+  // Filter leads to get only students (alunos)
+  const students = leads
+    .filter((lead: any) => lead.tags?.includes('aluno'))
+    .map((lead: any) => ({
+      id: lead.id.toString(),
+      name: lead.name,
+      source: lead.source || 'Favale'
+    }));
   
-  // Filtrar alunos baseado na fonte selecionada
+  // Filter students based on selected source
   const filteredStudents = selectedSource 
     ? students.filter(student => student.source === selectedSource) 
     : students;
   
   // Função para gerar relatório
+  // Helper functions to get names from IDs
+  const getStudentName = (leadId: number) => {
+    const lead = leads.find((l: any) => l.id === leadId);
+    return lead?.name || 'Estudante';
+  };
+
+  const getTrainerName = (trainerId: number) => {
+    const trainer = trainers.find((t: any) => t.id === trainerId);
+    return trainer?.name || 'Professor';
+  };
+
   const generateReport = () => {
     setIsLoading(true);
     
-    // Simular busca de dados da API
-    setTimeout(() => {
-      // Mock de dados para relatório
-      setReportData([
-        {
-          id: 1,
-          date: '2023-05-10',
-          startTime: '09:00',
-          endTime: '10:00',
-          duration: '1h',
-          trainerName: 'Ana Silva',
-          source: 'Favale',
-          status: 'Concluída',
-          location: 'Academia Central',
-          value: 120,
-        },
-        {
-          id: 2,
-          date: '2023-05-17',
-          startTime: '09:00',
-          endTime: '10:00',
-          duration: '1h',
-          trainerName: 'Ana Silva',
-          source: 'Favale',
-          status: 'Concluída',
-          location: 'Academia Central',
-          value: 120,
-        },
-        {
-          id: 3,
-          date: '2023-05-24',
-          startTime: '09:00',
-          endTime: '10:00',
-          duration: '1h',
-          trainerName: 'Ana Silva',
-          source: 'Favale',
-          status: 'Concluída',
-          location: 'Academia Central',
-          value: 120,
-        },
-        {
-          id: 4,
-          date: '2023-05-31',
-          startTime: '09:00',
-          endTime: '10:00',
-          duration: '1h',
-          trainerName: 'Pedro Costa',
-          source: 'Favale',
-          status: 'Concluída',
-          location: 'Academia Sul',
-          value: 120,
-        },
-      ]);
-      
+    try {
+      // Filter sessions based on criteria
+      let filteredSessions = sessions.filter((session: any) => {
+        const sessionDate = new Date(session.startTime);
+        const isInDateRange = sessionDate >= fromDate && sessionDate <= toDate;
+        const matchesSource = !selectedSource || session.source === selectedSource;
+        const matchesStudent = !selectedStudent || session.leadId.toString() === selectedStudent;
+        
+        return isInDateRange && matchesSource && matchesStudent;
+      });
+
+      // Convert sessions to report format
+      const reportSessions = filteredSessions.map((session: any) => {
+        const startTime = new Date(session.startTime);
+        const endTime = new Date(session.endTime);
+        const duration = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)); // minutes
+        
+        return {
+          id: session.id,
+          date: format(startTime, 'yyyy-MM-dd'),
+          startTime: format(startTime, 'HH:mm'),
+          endTime: format(endTime, 'HH:mm'),
+          duration: duration > 60 ? `${Math.floor(duration/60)}h${duration%60 > 0 ? ` ${duration%60}min` : ''}` : `${duration}min`,
+          trainerName: getTrainerName(session.trainerId),
+          source: session.source,
+          status: session.status === 'agendado' ? 'Agendado' : 
+                 session.status === 'completed' ? 'Concluída' : 
+                 session.status === 'cancelled' ? 'Cancelada' : session.status,
+          location: session.location,
+          value: session.value || 0,
+        };
+      });
+
+      setReportData(reportSessions);
       setIsLoading(false);
+      
       toast({
         title: 'Relatório gerado',
-        description: 'O relatório foi gerado com sucesso!',
+        description: `${reportSessions.length} sessões encontradas.`,
       });
-    }, 1500);
+    } catch (error) {
+      setIsLoading(false);
+      toast({
+        title: 'Erro ao gerar relatório',
+        description: 'Ocorreu um erro ao processar os dados.',
+        variant: 'destructive'
+      });
+    }
   };
   
   // Função para exportar relatório como CSV
