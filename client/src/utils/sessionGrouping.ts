@@ -1,7 +1,7 @@
 import { format, isSameDay, differenceInDays, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'agendado' | 'concluído' | 'cancelado';
 
 interface Session {
   id: number;

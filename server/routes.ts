@@ -251,7 +251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ${session.startTime}, ${session.endTime}, ${location}, ${source}, 
             ${leadId}, ${trainerId}, ${notes || null}, ${status || 'agendado'}, 
             ${value}, ${service}, ${recurrenceType}, ${recurrenceInterval},
-            ${recurrenceWeekDays}, ${recurrenceEndType}, ${recurrenceEndDate}, 
+            ${recurrenceWeekDays || null}, ${recurrenceEndType}, ${recurrenceEndDate}, 
             ${recurrenceEndCount}, ${recurrenceGroupId}, ${session.isParent},
             ${parentSessionId}
           )
