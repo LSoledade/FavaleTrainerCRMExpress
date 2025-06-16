@@ -134,7 +134,7 @@ export function groupSessions(
   getTrainerName: (trainerId: number) => string
 ): GroupedSessions {
   const recurring: RecurringGroup[] = [];
-  const individual: Session[] = [];
+  let individualSessions: Session[] = [];
 
   // Group by recurrenceGroupId
   const recurrenceGroups = new Map<string, Session[]>();
@@ -146,14 +146,14 @@ export function groupSessions(
       }
       recurrenceGroups.get(session.recurrenceGroupId)!.push(session);
     } else {
-      individual.push(session);
+      individualSessions.push(session);
     }
   }
 
   // Create recurring groups from recurrence groups
-  for (const [groupId, groupSessions] of recurrenceGroups) {
+  Array.from(recurrenceGroups.entries()).forEach(([groupId, groupSessions]) => {
     if (groupSessions.length > 1) {
-      const sortedSessions = groupSessions.sort((a, b) => 
+      const sortedSessions = groupSessions.sort((a: Session, b: Session) => 
         new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
       );
 
@@ -189,20 +189,20 @@ export function groupSessions(
         location: firstSession.location,
         timeSlot,
         nextSession: sortedSessions
-          .filter(s => new Date(s.startTime) > new Date() && s.status === 'scheduled')
-          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0]
+          .filter((s: Session) => new Date(s.startTime) > new Date() && s.status === 'scheduled')
+          .sort((a: Session, b: Session) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0]
       };
 
       recurring.push(recurringGroup);
     } else {
-      individual.push(...groupSessions);
+      individualSessions.push(...groupSessions);
     }
-  }
+  });
 
   // For sessions without recurrence data, try to detect patterns (legacy support)
-  const unGroupedSessions = individual.filter(s => !s.recurrenceGroupId);
+  const unGroupedSessions = individualSessions.filter(s => !s.recurrenceGroupId);
   const sessionGroups = groupSimilarSessions(unGroupedSessions);
-  individual = individual.filter(s => s.recurrenceGroupId); // Keep only sessions with recurrence data
+  const finalIndividual = individualSessions.filter(s => s.recurrenceGroupId);
 
   for (const group of sessionGroups) {
     if (group.length >= 3) {
@@ -227,14 +227,14 @@ export function groupSessions(
         
         recurring.push(recurringGroup);
       } else {
-        individual.push(...group);
+        finalIndividual.push(...group);
       }
     } else {
-      individual.push(...group);
+      finalIndividual.push(...group);
     }
   }
 
-  return { recurring, individual };
+  return { recurring, individual: finalIndividual };
 }
 
 /**
