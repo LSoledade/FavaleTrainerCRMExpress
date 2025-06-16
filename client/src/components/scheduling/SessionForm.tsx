@@ -116,20 +116,32 @@ export function SessionForm({ defaultValues, sessionId, onSuccess }: SessionForm
 
       if (sessionId) {
         // Update existing session
-        await apiRequest(`/api/sessions/${sessionId}`, {
+        const response = await fetch(`/api/sessions/${sessionId}`, {
           method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(sessionData),
         });
+        
+        if (!response.ok) {
+          throw new Error('Erro ao atualizar sessão');
+        }
+        
         toast({
           title: 'Sessão atualizada',
           description: 'A sessão foi atualizada com sucesso.',
         });
       } else {
         // Create new session
-        await apiRequest('/api/sessions', {
+        const response = await fetch('/api/sessions', {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(sessionData),
         });
+        
+        if (!response.ok) {
+          throw new Error('Erro ao criar sessão');
+        }
+        
         toast({
           title: 'Sessão criada',
           description: 'A sessão foi agendada com sucesso.',
