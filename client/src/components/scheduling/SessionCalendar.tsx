@@ -11,22 +11,22 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'wouter';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show';
 
 interface Session {
   id: number;
-  startTime: Date;
-  endTime: Date;
+  startTime: string;
+  endTime: string;
   location: string;
-  source: 'Favale' | 'Pink';
+  source: 'Favale' | 'Pink' | 'FavalePink';
   notes?: string;
   status: SessionStatus;
-  studentId: string;
-  studentName: string;
-  trainerId: string;
-  trainerName: string;
-  calendarEventId?: string;
+  leadId: number;
+  trainerId: number;
+  value?: number;
+  service?: string;
 }
 
 export function SessionCalendar() {
