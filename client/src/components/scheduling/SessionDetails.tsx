@@ -5,22 +5,22 @@ import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { CalendarIcon, Clock, FileEdit, MapPin, User, X } from 'lucide-react';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show';
 
 interface Session {
   id: number;
-  startTime: Date;
-  endTime: Date;
+  startTime: string;
+  endTime: string;
   location: string;
-  source: 'Favale' | 'Pink';
+  source: 'Favale' | 'Pink' | 'FavalePink';
   notes?: string;
   status: SessionStatus;
-  studentId: string;
-  studentName: string;
-  trainerId: string;
-  trainerName: string;
-  calendarEventId?: string;
+  leadId: number;
+  trainerId: number;
+  value?: number;
+  service?: string;
 }
 
 interface SessionDetailsProps {
@@ -32,6 +32,29 @@ interface SessionDetailsProps {
 
 export function SessionDetails({ session, onCancelSession, onCompleteSession, onEditSession }: SessionDetailsProps) {
   const [cancelAlertOpen, setCancelAlertOpen] = useState(false);
+  
+  // Fetch leads for student names
+  const { data: leads = [] } = useQuery({
+    queryKey: ['/api/leads'],
+    queryFn: () => fetch('/api/leads').then(res => res.json())
+  });
+
+  // Fetch trainers for trainer names
+  const { data: trainers = [] } = useQuery({
+    queryKey: ['/api/trainers'],
+    queryFn: () => fetch('/api/trainers').then(res => res.json())
+  });
+
+  // Helper functions to get names from IDs
+  const getStudentName = (leadId: number) => {
+    const lead = leads.find((l: any) => l.id === leadId);
+    return lead?.name || 'Estudante';
+  };
+
+  const getTrainerName = (trainerId: number) => {
+    const trainer = trainers.find((t: any) => t.id === trainerId);
+    return trainer?.name || 'Professor';
+  };
   
   function getStatusClass(status: SessionStatus): string {
     switch (status) {

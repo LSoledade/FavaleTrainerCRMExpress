@@ -1,6 +1,7 @@
  import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useQuery } from '@tanstack/react-query';
 import {
   Table,
   TableBody,
@@ -34,17 +35,16 @@ type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show';
 
 interface Session {
   id: number;
-  startTime: Date;
-  endTime: Date;
+  startTime: string;
+  endTime: string;
   location: string;
-  source: 'Favale' | 'Pink';
+  source: 'Favale' | 'Pink' | 'FavalePink';
   notes?: string;
   status: SessionStatus;
-  studentId: string;
-  studentName: string;
-  trainerId: string;
-  trainerName: string;
-  calendarEventId?: string;
+  leadId: number;
+  trainerId: number;
+  value?: number;
+  service?: string;
 }
 
 interface SessionTableProps {
@@ -88,15 +88,54 @@ export function SessionTable({ sessions, onRefresh }: SessionTableProps) {
   const [editSessionOpen, setEditSessionOpen] = useState(false);
   const { toast } = useToast();
   
-  // Mock function para cancelar sessão
-  const handleCancelSession = (id: number) => {
-    console.log('Cancelando sessão:', id);
-    toast({
-      title: 'Sessão cancelada',
-      description: 'A sessão foi cancelada com sucesso.',
-    });
-    setViewDetailsOpen(false);
-    onRefresh();
+  // Fetch leads for student names
+  const { data: leads = [] } = useQuery({
+    queryKey: ['/api/leads'],
+    queryFn: () => fetch('/api/leads').then(res => res.json())
+  });
+
+  // Fetch trainers for trainer names
+  const { data: trainers = [] } = useQuery({
+    queryKey: ['/api/trainers'],
+    queryFn: () => fetch('/api/trainers').then(res => res.json())
+  });
+
+  // Helper functions to get names from IDs
+  const getStudentName = (leadId: number) => {
+    const lead = leads.find((l: any) => l.id === leadId);
+    return lead?.name || 'Estudante';
+  };
+
+  const getTrainerName = (trainerId: number) => {
+    const trainer = trainers.find((t: any) => t.id === trainerId);
+    return trainer?.name || 'Professor';
+  };
+  
+  const handleCancelSession = async (id: number) => {
+    try {
+      const response = await fetch(`/api/sessions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' })
+      });
+      
+      if (response.ok) {
+        toast({
+          title: 'Sessão cancelada',
+          description: 'A sessão foi cancelada com sucesso.',
+        });
+        setViewDetailsOpen(false);
+        onRefresh();
+      } else {
+        throw new Error('Erro ao cancelar sessão');
+      }
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível cancelar a sessão.',
+        variant: 'destructive'
+      });
+    }
   };
   
   // Mock function para marcar sessão como concluída
@@ -166,10 +205,10 @@ export function SessionTable({ sessions, onRefresh }: SessionTableProps) {
                           'h-2 w-2 rounded-full bg-blue-500 p-0' : 
                           'h-2 w-2 rounded-full bg-pink-500 p-0'}
                       />
-                      {session.studentName}
+                      {getStudentName(session.leadId)}
                     </div>
                   </TableCell>
-                  <TableCell>{session.trainerName}</TableCell>
+                  <TableCell>{getTrainerName(session.trainerId)}</TableCell>
                   <TableCell className="hidden md:table-cell truncate max-w-xs">{session.location}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={getStatusBadgeVariant(session.status)}>
