@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQuery } from '@tanstack/react-query';
-import { RecurringSessionGroup } from './RecurringSessionGroup';
+import { RecurringSessionCard } from './RecurringSessionCard';
 import { groupSessions } from '@/utils/sessionGrouping';
 import {
   Table,
@@ -33,7 +33,7 @@ import { SessionDetails } from './SessionDetails';
 import { SessionForm } from './SessionForm';
 import { useToast } from '@/hooks/use-toast';
 
-type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show' | 'agendado' | 'concluído' | 'cancelado';
 
 interface Session {
   id: number;
@@ -47,6 +47,10 @@ interface Session {
   trainerId: number;
   value?: number;
   service?: string;
+  recurrenceType?: string;
+  recurrenceGroupId?: string;
+  isRecurrenceParent?: boolean;
+  parentSessionId?: number;
 }
 
 interface SessionTableProps {
@@ -196,12 +200,12 @@ export function SessionTable({ sessions, onRefresh }: SessionTableProps) {
               Sessões Recorrentes ({groupedSessions.recurring.length})
             </h3>
             {groupedSessions.recurring.map((group, index) => (
-              <RecurringSessionGroup
+              <RecurringSessionCard
                 key={`recurring-${index}`}
                 group={group}
-                onSessionClick={openSessionDetails}
-                getStudentName={getStudentName}
-                getTrainerName={getTrainerName}
+                onEditSession={(session) => openSessionDetails(session)}
+                onCancelSession={handleCancelSession}
+                onCompleteSession={handleCompleteSession}
               />
             ))}
           </div>

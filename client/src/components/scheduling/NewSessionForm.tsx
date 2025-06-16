@@ -443,7 +443,179 @@ export function NewSessionForm({ leads, trainers, onSubmit, onCancel, isLoading 
 
               {showRecurrence && watchRecurrenceType !== 'none' && (
                 <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  {(watchRecurrenceType === 'daily' || watchRecurrenceType === 'weekly' || watchRecurrenceType === 'monthly') && (
+                  {watchRecurrenceType === 'custom' && (
+                    <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <h4 className="font-medium text-blue-900 dark:text-blue-100">Recorrência personalizada</h4>
+                      
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600 dark:text-gray-300">Repetir a cada:</span>
+                        <FormField
+                          control={form.control}
+                          name="recurrenceInterval"
+                          render={({ field }) => (
+                            <FormItem className="flex-shrink-0">
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  type="number"
+                                  min="1"
+                                  max="30"
+                                  className="w-16 text-center"
+                                  onChange={(e) => field.onChange(parseInt(e.target.value || '1'))}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <Select defaultValue="weekly">
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">dia(s)</SelectItem>
+                            <SelectItem value="weekly">semana(s)</SelectItem>
+                            <SelectItem value="monthly">mês(es)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Repetir:</Label>
+                        <FormField
+                          control={form.control}
+                          name="recurrenceWeekDays"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex gap-1 mt-2">
+                                {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, index) => {
+                                  const dayValues = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+                                  const dayValue = dayValues[index];
+                                  const isSelected = field.value?.includes(dayValue as any) || false;
+                                  
+                                  return (
+                                    <button
+                                      key={index}
+                                      type="button"
+                                      onClick={() => {
+                                        const current = field.value || [];
+                                        if (isSelected) {
+                                          field.onChange(current.filter(d => d !== dayValue));
+                                        } else {
+                                          field.onChange([...current, dayValue]);
+                                        }
+                                      }}
+                                      className={cn(
+                                        "w-8 h-8 rounded-full text-sm font-medium transition-colors",
+                                        isSelected 
+                                          ? "bg-blue-500 text-white" 
+                                          : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                                      )}
+                                    >
+                                      {day}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Termina em</Label>
+                        <FormField
+                          control={form.control}
+                          name="recurrenceEndType"
+                          render={({ field }) => (
+                            <FormItem className="mt-2">
+                              <div className="space-y-2">
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="radio"
+                                    id="never"
+                                    name="endType"
+                                    checked={field.value === 'never'}
+                                    onChange={() => field.onChange('never')}
+                                    className="w-4 h-4 text-blue-600"
+                                  />
+                                  <Label htmlFor="never" className="text-sm">Nunca</Label>
+                                </div>
+                                
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="radio"
+                                    id="date"
+                                    name="endType"
+                                    checked={field.value === 'date'}
+                                    onChange={() => field.onChange('date')}
+                                    className="w-4 h-4 text-blue-600"
+                                  />
+                                  <Label htmlFor="date" className="text-sm">Em</Label>
+                                  {watchRecurrenceEndType === 'date' && (
+                                    <FormField
+                                      control={form.control}
+                                      name="recurrenceEndDate"
+                                      render={({ field: dateField }) => (
+                                        <FormItem>
+                                          <FormControl>
+                                            <Input
+                                              type="date"
+                                              value={dateField.value ? format(dateField.value, 'yyyy-MM-dd') : ''}
+                                              onChange={(e) => dateField.onChange(new Date(e.target.value))}
+                                              className="text-sm"
+                                            />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+                                  )}
+                                </div>
+                                
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="radio"
+                                    id="count"
+                                    name="endType"
+                                    checked={field.value === 'count'}
+                                    onChange={() => field.onChange('count')}
+                                    className="w-4 h-4 text-blue-600"
+                                  />
+                                  <Label htmlFor="count" className="text-sm">Após</Label>
+                                  {watchRecurrenceEndType === 'count' && (
+                                    <FormField
+                                      control={form.control}
+                                      name="recurrenceEndCount"
+                                      render={({ field: countField }) => (
+                                        <FormItem>
+                                          <FormControl>
+                                            <Input
+                                              {...countField}
+                                              type="number"
+                                              min="1"
+                                              max="100"
+                                              className="w-16 text-center text-sm"
+                                              onChange={(e) => countField.onChange(parseInt(e.target.value || '1'))}
+                                            />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+                                  )}
+                                  {watchRecurrenceEndType === 'count' && (
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">ocorrências</span>
+                                  )}
+                                </div>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {(watchRecurrenceType === 'daily' || watchRecurrenceType === 'weekly' || watchRecurrenceType === 'monthly') && watchRecurrenceType !== 'custom' && (
                     <FormField
                       control={form.control}
                       name="recurrenceInterval"
@@ -469,7 +641,7 @@ export function NewSessionForm({ leads, trainers, onSubmit, onCancel, isLoading 
                     />
                   )}
 
-                  {watchRecurrenceType === 'weekly' && (
+                  {watchRecurrenceType === 'weekly' && watchRecurrenceType !== 'custom' && (
                     <FormField
                       control={form.control}
                       name="recurrenceWeekDays"

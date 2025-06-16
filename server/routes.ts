@@ -72,7 +72,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lead_id as "leadId",
           trainer_id as "trainerId",
           value,
-          service
+          service,
+          recurrence_type as "recurrenceType",
+          recurrence_interval as "recurrenceInterval",
+          recurrence_week_days as "recurrenceWeekDays",
+          recurrence_end_type as "recurrenceEndType",
+          recurrence_end_date as "recurrenceEndDate",
+          recurrence_end_count as "recurrenceEndCount",
+          recurrence_group_id as "recurrenceGroupId",
+          is_recurrence_parent as "isRecurrenceParent",
+          parent_session_id as "parentSessionId"
         FROM sessions 
         ORDER BY start_time ASC
       `);
