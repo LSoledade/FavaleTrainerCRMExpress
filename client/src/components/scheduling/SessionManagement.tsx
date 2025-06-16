@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,98 +10,59 @@ import { Plus, Calendar, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'wouter';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show';
 
 interface Session {
   id: number;
-  startTime: Date;
-  endTime: Date;
+  startTime: string;
+  endTime: string;
   location: string;
-  source: 'Favale' | 'Pink';
+  source: 'Favale' | 'Pink' | 'FavalePink';
   notes?: string;
   status: SessionStatus;
-  studentId: string;
-  studentName: string;
-  trainerId: string;
-  trainerName: string;
+  leadId: number;
+  trainerId: number;
+  value?: number;
+  service?: string;
 }
 
 export function SessionManagement() {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
-  // Mock data de sessões - a ser substituído por chamadas à API
-  useEffect(() => {
-    // Simular carregamento de dados da API
-    setIsLoading(true);
-    setTimeout(() => {
-      setSessions([
-        {
-          id: 1,
-          startTime: new Date(new Date().setHours(9, 0, 0, 0)),
-          endTime: new Date(new Date().setHours(10, 0, 0, 0)),
-          location: 'Casa',
-          source: 'Favale',
-          notes: 'Foco em treinamento de força',
-          status: 'scheduled',
-          studentId: '101',
-          studentName: 'Carlos Oliveira',
-          trainerId: '201',
-          trainerName: 'André Silva',
-        },
-        {
-          id: 2,
-          startTime: new Date(new Date().setHours(15, 0, 0, 0)),
-          endTime: new Date(new Date().setHours(16, 0, 0, 0)),
-          location: 'Bodytech Iguatemi',
-          source: 'Pink',
-          notes: 'Treino de cardio e flexibilidade',
-          status: 'scheduled',
-          studentId: '102',
-          studentName: 'Maria Santos',
-          trainerId: '202',
-          trainerName: 'Michelle Amorim',
-        },
-        {
-          id: 3,
-          startTime: new Date(new Date().setDate(new Date().getDate() + 1)),
-          endTime: new Date(new Date().setDate(new Date().getDate() + 1)),
-          location: 'Bodytech Eldourado',
-          source: 'Favale',
-          status: 'scheduled',
-          studentId: '103',
-          studentName: 'João Pereira',
-          trainerId: '201',
-          trainerName: 'Gabriel Tonini',
-        },
-      ]);
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+  // Fetch sessions from API
+  const { data: sessions = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['/api/sessions'],
+    queryFn: () => fetch('/api/sessions').then(res => res.json())
+  });
 
-  // Atualizar sessões (para ser chamado após ações como criar, atualizar, etc.)
-  const refreshSessions = () => {
-    // Simular recarregamento de dados da API
-    setIsRefreshing(true);
-    
-    setTimeout(() => {
-      // Aqui você faria uma nova chamada à API
-      setIsRefreshing(false);
-      
+  // Refresh sessions function
+  const refreshSessions = async () => {
+    try {
+      await refetch();
       toast({
         title: 'Dados atualizados',
         description: 'As sessões foram atualizadas com sucesso.',
       });
-    }, 800);
+    } catch (error) {
+      toast({
+        title: 'Erro ao atualizar',
+        description: 'Não foi possível atualizar as sessões.',
+        variant: 'destructive'
+      });
+    }
   };
 
   const handleAddSessionSuccess = () => {
     setFormDialogOpen(false);
-    refreshSessions();
+    queryClient.invalidateQueries({ queryKey: ['/api/sessions'] });
+    toast({
+      title: 'Sessão criada',
+      description: 'A sessão foi agendada com sucesso.',
+    });
   };
 
   return (
@@ -122,10 +83,10 @@ export function SessionManagement() {
               variant="outline" 
               size="sm"
               onClick={refreshSessions}
-              disabled={isRefreshing}
+              disabled={isLoading}
               className="text-gray-600 dark:text-gray-300"
             >
-              <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
               Atualizar
             </Button>
             
