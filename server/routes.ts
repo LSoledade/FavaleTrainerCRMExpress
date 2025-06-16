@@ -342,7 +342,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new session
   app.post('/api/sessions', async (req, res) => {
     try {
-      const sessionData = req.body;
+      const sessionData = {
+        ...req.body,
+        startTime: new Date(req.body.startTime),
+        endTime: new Date(req.body.endTime)
+      };
       
       // Gerar sessões recorrentes se necessário
       if (!sessionData.isOneTime && sessionData.weeklyFrequency && sessionData.weekDays) {
