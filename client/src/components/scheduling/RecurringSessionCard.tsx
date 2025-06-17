@@ -120,25 +120,25 @@ export function RecurringSessionCard({
                   </div>
 
                   {/* Info Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                      <User className="h-4 w-4" />
-                      <span>Prof. {group.trainerName}</span>
+                      <User className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">Prof. {group.trainerName}</span>
                     </div>
                     
                     <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                      <MapPin className="h-4 w-4" />
-                      <span>{group.location}</span>
+                      <MapPin className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{group.location}</span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                      <Calendar className="h-4 w-4" />
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 sm:col-span-2 lg:col-span-1">
+                      <Calendar className="h-4 w-4 flex-shrink-0" />
                       <span>{totalSessions} sessões</span>
                     </div>
                   </div>
 
                   {/* Statistics */}
-                  <div className="flex gap-4 text-xs">
+                  <div className="flex flex-wrap gap-4 text-xs">
                     <span className="text-green-600 dark:text-green-400">
                       {completedSessions} concluídas
                     </span>

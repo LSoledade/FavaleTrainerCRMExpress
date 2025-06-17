@@ -76,16 +76,30 @@ function getStatusBadgeVariant(status: SessionStatus) {
 function getStatusText(status: SessionStatus): string {
   switch (status) {
     case 'scheduled':
+    case 'agendado':
       return 'Agendada';
     case 'completed':
+    case 'concluído':
       return 'Concluída';
     case 'cancelled':
+    case 'cancelado':
       return 'Cancelada';
     case 'no-show':
       return 'Não Compareceu';
     default:
       return status;
   }
+}
+
+function getStatusBadge(status: SessionStatus) {
+  const variant = getStatusBadgeVariant(status);
+  const text = getStatusText(status);
+  
+  return (
+    <Badge className={`${variant} border-0`}>
+      {text}
+    </Badge>
+  );
 }
 
 export function SessionTable({ sessions, onRefresh }: SessionTableProps) {
