@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Lead } from "@shared/schema";
-import { useLeadActions, useLeadSelection } from "@/stores/selectors";
-import { useWhatsappActions } from "@/stores/selectors";
+import { useLeadContext } from "@/context/LeadContext";
+import { useWhatsappContext } from "@/context/WhatsappContext";
 import { formatDate } from "@/utils/formatters";
 import WhatsappButton from "../whatsapp/WhatsappButton";
 import {
@@ -24,10 +24,10 @@ export default function LeadTable({ leads, isLoading, onDelete, indexOfFirstLead
   const { 
     setSelectedLead, 
     setIsDialogOpen,
+    selectedLeadIds,
     setSelectedLeadIds 
-  } = useLeadActions();
-  const { selectedLeadIds } = useLeadSelection();
-  const { openWhatsappChat } = useWhatsappActions();
+  } = useLeadContext();
+  const { openWhatsappChat } = useWhatsappContext();
   const [currentPage, setCurrentPage] = useState(1);
   const leadsPerPage = 10;
   const [selectMode, setSelectMode] = useState<'page' | 'all'>('page');
