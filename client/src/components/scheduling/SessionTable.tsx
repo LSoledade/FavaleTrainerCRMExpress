@@ -222,18 +222,19 @@ export function SessionTable({ sessions, onRefresh }: SessionTableProps) {
                 Sessões Individuais ({groupedSessions.individual.length})
               </h3>
             )}
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data/Horário</TableHead>
-                    <TableHead>Aluno</TableHead>
-                    <TableHead>Professor</TableHead>
-                    <TableHead className="hidden md:table-cell">Local</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
+            <div className="rounded-md border overflow-hidden">
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data/Horário</TableHead>
+                      <TableHead>Aluno</TableHead>
+                      <TableHead>Professor</TableHead>
+                      <TableHead className="hidden lg:table-cell">Local</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
                   {groupedSessions.individual.map((session) => (
                     <TableRow key={session.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openSessionDetails(session)}>
@@ -321,7 +322,89 @@ export function SessionTable({ sessions, onRefresh }: SessionTableProps) {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
+              
+              {/* Mobile view */}
+              <div className="md:hidden space-y-3 p-4">
+                {groupedSessions.individual.map((session) => (
+                  <div key={session.id} className="bg-white dark:bg-gray-800 border rounded-lg p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors" onClick={() => openSessionDetails(session)}>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-medium text-sm">
+                          {format(new Date(session.startTime), 'dd/MM/yyyy', { locale: ptBR })}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {format(new Date(session.startTime), 'HH:mm', { locale: ptBR })} - {format(new Date(session.endTime), 'HH:mm', { locale: ptBR })}
+                        </div>
+                      </div>
+                      {getStatusBadge(session.status)}
+                    </div>
+                    
+                    <div className="space-y-1 mb-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={session.source === 'Favale' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-pink-50 text-pink-600 border-pink-200'}>
+                          {session.source}
+                        </Badge>
+                        <span className="text-sm font-medium">{getStudentName(session.leadId)}</span>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Professor: {getTrainerName(session.trainerId)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Local: {session.location}
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            openSessionDetails(session);
+                          }}>
+                            Ver detalhes
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            openEditSession(session);
+                          }}>
+                            Editar sessão
+                          </DropdownMenuItem>
+                          {session.status === 'scheduled' && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCompleteSession(session.id);
+                                }}
+                                className="text-green-600"
+                              >
+                                Marcar como concluída
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCancelSession(session.id);
+                                }}
+                                className="text-red-600"
+                              >
+                                Cancelar sessão
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

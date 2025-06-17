@@ -134,31 +134,32 @@ export function SessionManagement() {
   return (
     <div className="space-y-4 animate-in fade-in-50 duration-300">
       <Tabs defaultValue="sessions" className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <TabsList className="bg-background border dark:bg-gray-800/60 shadow-sm">
-            <TabsTrigger value="sessions" className="text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 rounded-md">
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+          <TabsList className="bg-background border dark:bg-gray-800/60 shadow-sm w-full sm:w-auto">
+            <TabsTrigger value="sessions" className="text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 rounded-md flex-1 sm:flex-none">
               Agendamentos
             </TabsTrigger>
-            <TabsTrigger value="reports" className="text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 rounded-md">
+            <TabsTrigger value="reports" className="text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 rounded-md flex-1 sm:flex-none">
               Relatórios
             </TabsTrigger>
           </TabsList>
           
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button 
               variant="outline" 
               size="sm"
               onClick={refreshSessions}
               disabled={isLoading}
-              className="text-gray-600 dark:text-gray-300"
+              className="text-gray-600 dark:text-gray-300 w-full sm:w-auto"
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-              Atualizar
+              <span className="hidden sm:inline">Atualizar</span>
+              <span className="sm:hidden">Atualizar</span>
             </Button>
             
             <Button 
               onClick={() => setFormDialogOpen(true)} 
-              className="bg-[#ff9810] hover:bg-[#ff9810]/90 text-white shadow-sm"
+              className="bg-[#ff9810] hover:bg-[#ff9810]/90 text-white shadow-sm w-full sm:w-auto"
               size="sm"
             >
               <Plus className="h-4 w-4 mr-1" />
@@ -168,11 +169,12 @@ export function SessionManagement() {
         </div>
         
         <TabsContent value="sessions" className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
             <Link href="/calendario">
-              <Button variant="ghost" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">
+              <Button variant="ghost" className="flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors w-full sm:w-auto">
                 <Calendar className="h-4 w-4" />
-                Ver Calendário Completo
+                <span className="hidden sm:inline">Ver Calendário Completo</span>
+                <span className="sm:hidden">Calendário</span>
               </Button>
             </Link>
           </div>
