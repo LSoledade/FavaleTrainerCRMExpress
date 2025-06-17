@@ -41,7 +41,7 @@ export default function LeadTable({ leads, isLoading, onDelete, indexOfFirstLead
     if (checked) {
       setSelectedLeadIds([...selectedLeadIds, leadId]);
     } else {
-      setSelectedLeadIds(selectedLeadIds.filter((id: number) => id !== leadId));
+      setSelectedLeadIds(selectedLeadIds.filter(id => id !== leadId));
     }
   };
   
