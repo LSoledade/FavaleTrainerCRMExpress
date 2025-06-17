@@ -21,20 +21,24 @@ export interface LeadActions {
 export type LeadStore = LeadState & LeadActions;
 
 // Task Store Types
+export interface TaskWithComments extends Task {
+  comments?: TaskComment[];
+}
+
 export interface TaskState {
-  tasks: Task[];
+  tasks: TaskWithComments[];
   loading: boolean;
   error: string | null;
 }
 
 export interface TaskActions {
-  setTasks: (tasks: Task[]) => void;
+  setTasks: (tasks: TaskWithComments[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   fetchTasks: () => Promise<void>;
-  fetchTaskById: (id: number) => Promise<Task | undefined>;
-  createTask: (task: Omit<Task, "id" | "createdAt" | "updatedAt" | "comments">) => Promise<Task>;
-  updateTask: (id: number, task: Partial<Task>) => Promise<Task>;
+  fetchTaskById: (id: number) => Promise<TaskWithComments | undefined>;
+  createTask: (task: Omit<TaskWithComments, "id" | "createdAt" | "updatedAt" | "comments">) => Promise<TaskWithComments>;
+  updateTask: (id: number, task: Partial<TaskWithComments>) => Promise<TaskWithComments>;
   deleteTask: (id: number) => Promise<boolean>;
   addComment: (taskId: number, content: string) => Promise<TaskComment>;
   addTaskComment: (taskId: number, comment: Partial<TaskComment>) => Promise<TaskComment>;
