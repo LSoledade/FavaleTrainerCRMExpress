@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CalendarPlus, Filter, Users } from 'lucide-react';
-import { NewSessionForm } from './NewSessionForm';
 import { SessionReport } from './SessionReport';
 
 // Configuração de localização para português brasileiro
@@ -323,21 +322,21 @@ export function KendoScheduler({ onNewSession }: KendoSchedulerProps) {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                       <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                        {sessions.filter((s: Session) => s.status === 'scheduled' || s.status === 'agendado').length}
+                        {Array.isArray(sessions) ? sessions.filter((s: any) => s.status === 'scheduled' || s.status === 'agendado').length : 0}
                       </div>
                       <div className="text-sm text-blue-600 dark:text-blue-400">Sessões Agendadas</div>
                     </div>
                     
                     <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
                       <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                        {sessions.filter((s: Session) => s.status === 'completed' || s.status === 'concluído').length}
+                        {Array.isArray(sessions) ? sessions.filter((s: any) => s.status === 'completed' || s.status === 'concluído').length : 0}
                       </div>
                       <div className="text-sm text-green-600 dark:text-green-400">Sessões Concluídas</div>
                     </div>
                     
                     <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
                       <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                        {sessions.filter((s: Session) => s.status === 'cancelled' || s.status === 'cancelado').length}
+                        {Array.isArray(sessions) ? sessions.filter((s: any) => s.status === 'cancelled' || s.status === 'cancelado').length : 0}
                       </div>
                       <div className="text-sm text-red-600 dark:text-red-400">Sessões Canceladas</div>
                     </div>
@@ -366,12 +365,15 @@ export function KendoScheduler({ onNewSession }: KendoSchedulerProps) {
                     ✕
                   </Button>
                 </div>
-                <NewSessionForm
-                  onSuccess={() => {
-                    setShowNewSessionForm(false);
-                    queryClient.invalidateQueries({ queryKey: ['/api/sessions'] });
-                  }}
-                />
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Formulário de nova sessão em desenvolvimento</p>
+                  <Button 
+                    onClick={() => setShowNewSessionForm(false)}
+                    className="mt-4"
+                  >
+                    Fechar
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
