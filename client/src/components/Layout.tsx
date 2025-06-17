@@ -1,7 +1,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
-import { useWhatsappContext } from "@/context/WhatsappContext";
+import { useWhatsappState, useWhatsappActions } from "@/stores/selectors";
 import WhatsappModal from "./whatsapp/WhatsappModal";
 import { useTheme } from "@/components/theme-provider";
 
@@ -13,7 +13,8 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
-  const { isWhatsappOpen, selectedLeadForWhatsapp, closeWhatsappChat } = useWhatsappContext();
+  const { isWhatsappOpen, selectedLeadForWhatsapp } = useWhatsappState();
+  const { closeWhatsappChat } = useWhatsappActions();
   const { theme } = useTheme();
   
   useEffect(() => {

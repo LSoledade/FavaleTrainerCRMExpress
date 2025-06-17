@@ -17,9 +17,7 @@ import TaskDetailsPage from "@/pages/TaskDetailsPage";
 import { FavaleIAPage } from "@/pages/FavaleIAPage";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ThemeProvider } from "@/components/theme-provider";
-import { LeadProvider } from "@/context/LeadContext";
-import { WhatsappProvider } from "@/context/WhatsappContext";
-import { TaskProvider } from "@/context/TaskContext";
+
 import { AuthProvider } from "@/hooks/use-auth";
 import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage";
 import ErrorBoundary from "@/components/ErrorBoundary"; // Adicionado ErrorBoundary
@@ -52,20 +50,14 @@ function App() {
     <ThemeProvider>
       <TooltipProvider>
         <AuthProvider>
-          <LeadProvider>
-            <WhatsappProvider>
-              <TaskProvider>
-                {isAuthPage ? (
-                  <Router />
-                ) : (
-                  <Layout>
-                    <Router />
-                  </Layout>
-                )}
-                <Toaster />
-              </TaskProvider>
-            </WhatsappProvider>
-          </LeadProvider>
+          {isAuthPage ? (
+            <Router />
+          ) : (
+            <Layout>
+              <Router />
+            </Layout>
+          )}
+          <Toaster />
         </AuthProvider>
       </TooltipProvider>
     </ThemeProvider>

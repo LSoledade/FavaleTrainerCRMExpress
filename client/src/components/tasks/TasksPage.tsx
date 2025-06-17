@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useTaskContext } from "@/context/TaskContext";
+import { useTaskStoreEnhanced } from "@/stores/hooks";
+import { useTaskActions, useTaskData } from "@/stores/selectors";
 import TaskCard from "./TaskCard";
 import TaskDialog from "./TaskDialog";
 import TaskDetailDialog from "./TaskDetailDialog";
@@ -68,13 +69,17 @@ export default function TasksPage() {
   const { 
     tasks, 
     loading, 
-    error, 
+    error
+  } = useTaskData();
+  const { 
     fetchTasks, 
-    updateTask,
+    updateTask
+  } = useTaskActions();
+  const {
     myTasks, 
     assignedTasks, 
     completedTasks 
-  } = useTaskContext();
+  } = useTaskStoreEnhanced();
   
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false);
