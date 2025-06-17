@@ -30,6 +30,7 @@ interface Session {
 
 export function SessionManagement() {
   const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -37,6 +38,18 @@ export function SessionManagement() {
   const { data: sessions = [], isLoading, error, refetch } = useQuery({
     queryKey: ['/api/sessions'],
     queryFn: () => fetch('/api/sessions').then(res => res.json())
+  });
+
+  // Fetch leads for the form
+  const { data: leads = [] } = useQuery({
+    queryKey: ['/api/leads'],
+    queryFn: () => fetch('/api/leads').then(res => res.json())
+  });
+
+  // Fetch trainers for the form
+  const { data: trainers = [] } = useQuery({
+    queryKey: ['/api/trainers'],
+    queryFn: () => fetch('/api/trainers').then(res => res.json())
   });
 
   // Refresh sessions function
@@ -56,43 +69,97 @@ export function SessionManagement() {
     }
   };
 
-  const handleAddSessionSuccess = () => {
+  const handleFormSubmit = async (formData: any) => {
+    setIsSubmitting(true);
+    try {
+      // Combine date and time into proper DateTime objects
+      const startDateTime = new Date(`${formData.date.toISOString().split('T')[0]}T${formData.startTime}:00`);
+      const endDateTime = new Date(`${formData.date.toISOString().split('T')[0]}T${formData.endTime}:00`);
+
+      const sessionData = {
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
+        leadId: formData.leadId,
+        trainerId: formData.trainerId,
+        location: formData.location,
+        source: formData.source,
+        value: formData.value,
+        service: formData.service,
+        notes: formData.notes || '',
+        status: 'agendado',
+        recurrenceType: formData.recurrenceType,
+        recurrenceInterval: formData.recurrenceInterval,
+        recurrenceWeekDays: formData.recurrenceWeekDays,
+        recurrenceEndType: formData.recurrenceEndType,
+        recurrenceEndDate: formData.recurrenceEndDate?.toISOString(),
+        recurrenceEndCount: formData.recurrenceEndCount,
+      };
+
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sessionData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao criar sessão');
+      }
+
+      const result = await response.json();
+      
+      setFormDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/sessions'] });
+      
+      toast({
+        title: 'Sessão criada com sucesso',
+        description: result.recurring 
+          ? `${result.count} sessões foram agendadas com base na recorrência configurada.`
+          : 'A sessão foi agendada com sucesso.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao agendar',
+        description: 'Não foi possível agendar a sessão. Tente novamente.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFormCancel = () => {
     setFormDialogOpen(false);
-    queryClient.invalidateQueries({ queryKey: ['/api/sessions'] });
-    toast({
-      title: 'Sessão criada',
-      description: 'A sessão foi agendada com sucesso.',
-    });
   };
 
   return (
     <div className="space-y-4 animate-in fade-in-50 duration-300">
       <Tabs defaultValue="sessions" className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <TabsList className="bg-background border dark:bg-gray-800/60 shadow-sm">
-            <TabsTrigger value="sessions" className="text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 rounded-md">
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+          <TabsList className="bg-background border dark:bg-gray-800/60 shadow-sm w-full sm:w-auto">
+            <TabsTrigger value="sessions" className="text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 rounded-md flex-1 sm:flex-none">
               Agendamentos
             </TabsTrigger>
-            <TabsTrigger value="reports" className="text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 rounded-md">
+            <TabsTrigger value="reports" className="text-sm data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 rounded-md flex-1 sm:flex-none">
               Relatórios
             </TabsTrigger>
           </TabsList>
           
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button 
               variant="outline" 
               size="sm"
               onClick={refreshSessions}
               disabled={isLoading}
-              className="text-gray-600 dark:text-gray-300"
+              className="text-gray-600 dark:text-gray-300 w-full sm:w-auto"
             >
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-              Atualizar
+              <span className="hidden sm:inline">Atualizar</span>
+              <span className="sm:hidden">Atualizar</span>
             </Button>
             
             <Button 
               onClick={() => setFormDialogOpen(true)} 
-              className="bg-[#ff9810] hover:bg-[#ff9810]/90 text-white shadow-sm"
+              className="bg-[#ff9810] hover:bg-[#ff9810]/90 text-white shadow-sm w-full sm:w-auto"
               size="sm"
             >
               <Plus className="h-4 w-4 mr-1" />
@@ -102,11 +169,12 @@ export function SessionManagement() {
         </div>
         
         <TabsContent value="sessions" className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
             <Link href="/calendario">
-              <Button variant="ghost" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">
+              <Button variant="ghost" className="flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors w-full sm:w-auto">
                 <Calendar className="h-4 w-4" />
-                Ver Calendário Completo
+                <span className="hidden sm:inline">Ver Calendário Completo</span>
+                <span className="sm:hidden">Calendário</span>
               </Button>
             </Link>
           </div>
@@ -165,13 +233,14 @@ export function SessionManagement() {
 
       {/* Dialog para adicionar nova sessão */}
       <Dialog open={formDialogOpen} onOpenChange={setFormDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-gray-800 dark:text-white">
-              Agendar Nova Sessão
-            </DialogTitle>
-          </DialogHeader>
-          <NewSessionForm onSuccess={handleAddSessionSuccess} />
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 rounded-xl">
+          <NewSessionForm 
+            leads={leads}
+            trainers={trainers}
+            onSubmit={handleFormSubmit}
+            onCancel={handleFormCancel}
+            isLoading={isSubmitting}
+          />
         </DialogContent>
       </Dialog>
     </div>

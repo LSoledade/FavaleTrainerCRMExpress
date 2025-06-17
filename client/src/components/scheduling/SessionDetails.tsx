@@ -128,14 +128,14 @@ export function SessionDetails({ session, onCancelSession, onCompleteSession, on
         <div className="flex items-center gap-2">
           <User className="h-4 w-4 text-muted-foreground" />
           <span>
-            <span className="font-medium">Aluno:</span> {session.studentName}
+            <span className="font-medium">Aluno:</span> {getStudentName(session.leadId)}
           </span>
         </div>
         
         <div className="flex items-center gap-2">
           <User className="h-4 w-4 text-muted-foreground" />
           <span>
-            <span className="font-medium">Professor:</span> {session.trainerName}
+            <span className="font-medium">Professor:</span> {getTrainerName(session.trainerId)}
           </span>
         </div>
         

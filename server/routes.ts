@@ -3,11 +3,12 @@ import { createServer, type Server } from "http";
 import { storage, type IStorage } from "./storage";
 import { db } from "./db";
 import { 
-  leads,
+  leads, sessions,
   insertLeadSchema, leadValidationSchema, whatsappMessageValidationSchema,
   taskValidationSchema, taskCommentValidationSchema,
   type Session, type Student, type WhatsappMessage
 } from "@shared/schema";
+import { randomUUID } from "crypto";
 import { fromZodError } from "zod-validation-error";
 import { setupAuth } from "./auth";
 import { logAuditEvent, AuditEventType, getRecentAuditLogs } from "./audit-log";
@@ -55,6 +56,277 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/stats", statsRouter); // Use stats router
   // Remover integração Google Calendar
   // app.use('/api/oauth', oauthRoutes);
+
+  // Get all sessions
+  app.get('/api/sessions', async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT 
+          id,
+          start_time as "startTime",
+          end_time as "endTime", 
+          location,
+          source,
+          notes,
+          status,
+          lead_id as "leadId",
+          trainer_id as "trainerId",
+          value,
+          service,
+          recurrence_type as "recurrenceType",
+          recurrence_interval as "recurrenceInterval",
+          recurrence_week_days as "recurrenceWeekDays",
+          recurrence_end_type as "recurrenceEndType",
+          recurrence_end_date as "recurrenceEndDate",
+          recurrence_end_count as "recurrenceEndCount",
+          recurrence_group_id as "recurrenceGroupId",
+          is_recurrence_parent as "isRecurrenceParent",
+          parent_session_id as "parentSessionId"
+        FROM sessions 
+        ORDER BY start_time ASC
+      `);
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Erro ao buscar sessões:', error);
+      res.status(500).json({ message: "Erro ao buscar sessões" });
+    }
+  });
+
+  // Get all trainers
+  app.get('/api/trainers', async (req, res) => {
+    try {
+      const result = await db.execute(sql`
+        SELECT id, name, email, specialties, source
+        FROM trainers 
+        ORDER BY name ASC
+      `);
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Erro ao buscar professores:', error);
+      res.status(500).json({ message: "Erro ao buscar professores" });
+    }
+  });
+
+  // Create new session with recurrence support
+  app.post('/api/sessions', async (req, res) => {
+    try {
+      const { 
+        startTime, 
+        endTime, 
+        location, 
+        source, 
+        leadId, 
+        trainerId, 
+        notes, 
+        status,
+        value,
+        service,
+        recurrenceType,
+        recurrenceInterval,
+        recurrenceWeekDays,
+        recurrenceEndType,
+        recurrenceEndDate,
+        recurrenceEndCount
+      } = req.body;
+
+      if (recurrenceType === 'none') {
+        // Single session
+        const result = await db.execute(sql`
+          INSERT INTO sessions (
+            start_time, end_time, location, source, lead_id, trainer_id, 
+            notes, status, value, service, recurrence_type
+          )
+          VALUES (
+            ${startTime}, ${endTime}, ${location}, ${source}, ${leadId}, ${trainerId}, 
+            ${notes || null}, ${status || 'agendado'}, ${value}, ${service}, ${recurrenceType}
+          )
+          RETURNING id
+        `);
+        
+        return res.json({ 
+          id: result.rows[0].id, 
+          message: 'Sessão criada com sucesso',
+          recurring: false,
+          count: 1
+        });
+      }
+
+      // Generate recurring sessions
+      const recurrenceGroupId = randomUUID();
+      const sessions = [];
+      const baseStartTime = new Date(startTime);
+      const baseEndTime = new Date(endTime);
+      let currentDate = new Date(baseStartTime);
+      
+      // Determine end condition
+      const maxSessions = recurrenceEndType === 'count' ? recurrenceEndCount : 100;
+      const endDate = recurrenceEndType === 'date' ? new Date(recurrenceEndDate) : null;
+      
+      let sessionCount = 0;
+      
+      while (sessionCount < maxSessions) {
+        // Check if we've reached the end date
+        if (endDate && currentDate > endDate) {
+          break;
+        }
+
+        // For weekly recurrence, check if current day matches selected days
+        if (recurrenceType === 'weekly') {
+          const dayNames = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+          const currentDayName = dayNames[currentDate.getDay()];
+          
+          if (recurrenceWeekDays && recurrenceWeekDays.includes(currentDayName)) {
+            const sessionStart = new Date(currentDate);
+            sessionStart.setHours(baseStartTime.getHours(), baseStartTime.getMinutes(), 0, 0);
+            
+            const sessionEnd = new Date(currentDate);
+            sessionEnd.setHours(baseEndTime.getHours(), baseEndTime.getMinutes(), 0, 0);
+            
+            sessions.push({
+              startTime: sessionStart.toISOString(),
+              endTime: sessionEnd.toISOString(),
+              isParent: sessions.length === 0
+            });
+          }
+          
+          // Move to next day
+          currentDate.setDate(currentDate.getDate() + 1);
+          
+          // After checking 7 days, jump by interval weeks
+          if (currentDate.getDay() === baseStartTime.getDay()) {
+            currentDate.setDate(currentDate.getDate() + (7 * (recurrenceInterval - 1)));
+          }
+        } else if (recurrenceType === 'daily') {
+          const sessionStart = new Date(currentDate);
+          sessionStart.setHours(baseStartTime.getHours(), baseStartTime.getMinutes(), 0, 0);
+          
+          const sessionEnd = new Date(currentDate);
+          sessionEnd.setHours(baseEndTime.getHours(), baseEndTime.getMinutes(), 0, 0);
+          
+          sessions.push({
+            startTime: sessionStart.toISOString(),
+            endTime: sessionEnd.toISOString(),
+            isParent: sessions.length === 0
+          });
+          
+          currentDate.setDate(currentDate.getDate() + recurrenceInterval);
+        } else if (recurrenceType === 'monthly') {
+          const sessionStart = new Date(currentDate);
+          sessionStart.setHours(baseStartTime.getHours(), baseStartTime.getMinutes(), 0, 0);
+          
+          const sessionEnd = new Date(currentDate);
+          sessionEnd.setHours(baseEndTime.getHours(), baseEndTime.getMinutes(), 0, 0);
+          
+          sessions.push({
+            startTime: sessionStart.toISOString(),
+            endTime: sessionEnd.toISOString(),
+            isParent: sessions.length === 0
+          });
+          
+          currentDate.setMonth(currentDate.getMonth() + recurrenceInterval);
+        }
+        
+        sessionCount++;
+        
+        // Safety check to prevent infinite loops
+        if (sessionCount > 365) break;
+      }
+
+      // Insert all sessions using SQL
+      let parentSessionId = null;
+      const insertedSessions = [];
+
+      for (const session of sessions) {
+        const result = await db.execute(sql`
+          INSERT INTO sessions (
+            start_time, end_time, location, source, lead_id, trainer_id, 
+            notes, status, value, service, recurrence_type, recurrence_interval,
+            recurrence_week_days, recurrence_end_type, recurrence_end_date, 
+            recurrence_end_count, recurrence_group_id, is_recurrence_parent,
+            parent_session_id
+          )
+          VALUES (
+            ${session.startTime}, ${session.endTime}, ${location}, ${source}, 
+            ${leadId}, ${trainerId}, ${notes}, ${status || 'agendado'}, 
+            ${value}, ${service}, ${recurrenceType}, ${recurrenceInterval},
+            ${recurrenceWeekDays ? JSON.stringify(recurrenceWeekDays) : null}, ${recurrenceEndType}, ${recurrenceEndDate}, 
+            ${recurrenceEndCount}, ${recurrenceGroupId}, ${session.isParent},
+            ${parentSessionId}
+          )
+          RETURNING id
+        `);
+        
+        const sessionId = result.rows[0].id;
+        insertedSessions.push(sessionId);
+        
+        if (session.isParent) {
+          parentSessionId = sessionId;
+        }
+      }
+
+      res.json({ 
+        message: 'Sessões criadas com sucesso',
+        recurring: true,
+        count: insertedSessions.length,
+        parentId: parentSessionId,
+        groupId: recurrenceGroupId
+      });
+    } catch (error) {
+      console.error('Erro ao criar sessão:', error);
+      res.status(500).json({ message: "Erro ao criar sessão" });
+    }
+  });
+
+  // Update session
+  app.patch('/api/sessions/:id', async (req, res) => {
+    try {
+      const sessionId = parseInt(req.params.id);
+      const updates = req.body;
+      
+      // Build dynamic update query
+      const updateFields = [];
+      const values = [];
+      
+      if (updates.startTime) {
+        updateFields.push('start_time = $' + (values.length + 1));
+        values.push(updates.startTime);
+      }
+      if (updates.endTime) {
+        updateFields.push('end_time = $' + (values.length + 1));
+        values.push(updates.endTime);
+      }
+      if (updates.location) {
+        updateFields.push('location = $' + (values.length + 1));
+        values.push(updates.location);
+      }
+      if (updates.status) {
+        updateFields.push('status = $' + (values.length + 1));
+        values.push(updates.status);
+      }
+      if (updates.notes !== undefined) {
+        updateFields.push('notes = $' + (values.length + 1));
+        values.push(updates.notes);
+      }
+      
+      if (updateFields.length === 0) {
+        return res.status(400).json({ message: 'Nenhum campo para atualizar' });
+      }
+      
+      updateFields.push('updated_at = NOW()');
+      values.push(sessionId);
+      
+      const query = `UPDATE sessions SET ${updateFields.join(', ')} WHERE id = $${values.length}`;
+      
+      await db.execute(sql.raw(query, values));
+      
+      res.json({ message: 'Sessão atualizada com sucesso' });
+    } catch (error) {
+      console.error('Erro ao atualizar sessão:', error);
+      res.status(500).json({ message: "Erro ao atualizar sessão" });
+    }
+  });
 
   // Get all leads
   app.get('/api/leads', async (req, res) => {
