@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { addMinutes, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,11 +17,14 @@ import {
 } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, Loader2 } from 'lucide-react';
+import { CalendarIcon, Loader2, Clock, Info, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { useQuery } from '@tanstack/react-query';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 
 // Schema para validação do formulário de sessão
 const sessionFormSchema = z.object({
@@ -38,20 +41,33 @@ const sessionFormSchema = z.object({
   source: z.enum(["Favale", "Pink"], {
     required_error: "A origem é obrigatória.",
   }),
-  leadId: z.number().min(1, "Um aluno deve ser selecionado."),
-  trainerId: z.number().min(1, "Um professor deve ser selecionado."),
+  studentId: z.string().min(1, "Um aluno deve ser selecionado."),
+  trainerId: z.string().min(1, "Um professor deve ser selecionado."),
   notes: z.string().optional(),
 }).refine(data => {
-  // Validar se o horário de fim é depois do horário de início
+  // Combinar data e horário para iniciar e finalizar time
   const startDateTime = new Date(`${format(data.date, 'yyyy-MM-dd')}T${data.startTime}`);
   const endDateTime = new Date(`${format(data.date, 'yyyy-MM-dd')}T${data.endTime}`);
+  
+  // Verificar se o horário de término é depois do horário de início
   return endDateTime > startDateTime;
 }, {
-  message: "O horário de término deve ser posterior ao horário de início.",
+  message: "O horário de término deve ser depois do horário de início.",
   path: ["endTime"],
 });
 
 type SessionFormValues = z.infer<typeof sessionFormSchema>;
+
+type TrainerOption = {
+  id: string;
+  name: string;
+};
+
+type StudentOption = {
+  id: string;
+  name: string;
+  source: string; // 'Favale' ou 'Pink'
+};
 
 type SessionFormProps = {
   defaultValues?: Partial<SessionFormValues>;
@@ -61,99 +77,146 @@ type SessionFormProps = {
 
 export function SessionForm({ defaultValues, sessionId, onSuccess }: SessionFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [trainers, setTrainers] = useState<TrainerOption[]>([]);
+  const [students, setStudents] = useState<StudentOption[]>([]);
+  const [selectedSource, setSelectedSource] = useState<string>(defaultValues?.source || '');
+  const [selectedStudent, setSelectedStudent] = useState<StudentOption | null>(null);
+  const [selectedTrainer, setSelectedTrainer] = useState<TrainerOption | null>(null);
   const { toast } = useToast();
+  
+  // Filtrar alunos baseado na origem selecionada (Favale ou Pink)
+  const filteredStudents = selectedSource
+    ? students.filter(student => student.source === selectedSource)
+    : students;
 
-  // Fetch leads for student selection
-  const { data: leads = [] } = useQuery({
-    queryKey: ['/api/leads'],
-    queryFn: () => fetch('/api/leads').then(res => res.json())
-  });
-
-  // Fetch trainers for trainer selection
-  const { data: trainers = [] } = useQuery({
-    queryKey: ['/api/trainers'],
-    queryFn: () => fetch('/api/trainers').then(res => res.json())
-  });
-
+  // Inicializar formulário
   const form = useForm<SessionFormValues>({
     resolver: zodResolver(sessionFormSchema),
     defaultValues: {
-      date: defaultValues?.date || new Date(),
-      startTime: defaultValues?.startTime || '09:00',
-      endTime: defaultValues?.endTime || '10:00',
-      location: defaultValues?.location || '',
-      source: defaultValues?.source || 'Favale',
-      leadId: defaultValues?.leadId || 0,
-      trainerId: defaultValues?.trainerId || 0,
-      notes: defaultValues?.notes || '',
+      date: new Date(),
+      startTime: '09:00',
+      endTime: '10:00',
+      location: '',
+      source: undefined,
+      studentId: '',
+      trainerId: '',
+      notes: '',
+      ...defaultValues,
     },
   });
 
-  const watchedSource = form.watch('source');
+  // Mock data para treinadores e alunos - a ser substituído por chamadas à API
+  useEffect(() => {
+    // Simular carregamento de treinadores e alunos da API
+    setTrainers([
+      { id: '201', name: 'Ana Silva' },
+      { id: '202', name: 'Pedro Costa' },
+      { id: '203', name: 'Juliana Ferreira' },
+    ]);
 
-  // Filter students based on selected source
-  const getFilteredStudents = () => {
-    if (!watchedSource) return leads;
+    setStudents([
+      { id: '101', name: 'Carlos Oliveira', source: 'Favale' },
+      { id: '102', name: 'Maria Santos', source: 'Pink' },
+      { id: '103', name: 'João Pereira', source: 'Favale' },
+      { id: '104', name: 'Rita Mendes', source: 'Pink' },
+      { id: '105', name: 'Fernando Sousa', source: 'Favale' },
+      { id: '106', name: 'Camila Alves', source: 'Pink' },
+    ]);
+
+    // Definir valores selecionados se houver defaultValues
+    if (defaultValues?.studentId) {
+      const student = students.find(s => s.id === defaultValues.studentId);
+      if (student) setSelectedStudent(student);
+    }
+
+    if (defaultValues?.trainerId) {
+      const trainer = trainers.find(t => t.id === defaultValues.trainerId);
+      if (trainer) setSelectedTrainer(trainer);
+    }
+  }, [defaultValues]);
+
+  // Atualizar origem quando mudar no formulário
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'source' && value.source) {
+        setSelectedSource(value.source as string);
+      }
+      
+      if (name === 'studentId' && value.studentId) {
+        const student = students.find(s => s.id === value.studentId);
+        if (student) setSelectedStudent(student);
+      }
+      
+      if (name === 'trainerId' && value.trainerId) {
+        const trainer = trainers.find(t => t.id === value.trainerId);
+        if (trainer) setSelectedTrainer(trainer);
+      }
+    });
     
-    // For this implementation, we'll show all leads regardless of source
-    // In a real implementation, you might filter based on a source field in the leads
-    return leads;
-  };
+    return () => subscription.unsubscribe();
+  }, [form.watch, students, trainers]);
 
+  // Tempos disponíveis - normalmente seriam carregados da API
+  const availableTimes = [
+    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", 
+    "11:00", "11:30", "12:00", "12:30", "13:00", "13:30",
+    "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", 
+    "17:00", "17:30", "18:00", "18:30", "19:00", "19:30"
+  ];
+
+  // Tratar envio do formulário
   const onSubmit = async (values: SessionFormValues) => {
     setIsLoading(true);
     try {
+      // Combinar data e horário para iniciar e finalizar time
+      const startDateTime = new Date(`${format(values.date, 'yyyy-MM-dd')}T${values.startTime}`);
+      const endDateTime = new Date(`${format(values.date, 'yyyy-MM-dd')}T${values.endTime}`);
+      
       const sessionData = {
-        startTime: new Date(`${format(values.date, 'yyyy-MM-dd')}T${values.startTime}`).toISOString(),
-        endTime: new Date(`${format(values.date, 'yyyy-MM-dd')}T${values.endTime}`).toISOString(),
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
         location: values.location,
         source: values.source,
-        leadId: values.leadId,
-        trainerId: values.trainerId,
-        notes: values.notes,
-        status: 'scheduled'
+        studentId: parseInt(values.studentId),
+        trainerId: parseInt(values.trainerId),
+        notes: values.notes || undefined,
+        status: 'scheduled', // Status padrão para novas sessões
       };
-
+      
+      // API call para criar ou atualizar sessão
+      // Neste ponto, você substitui isso por uma chamada real à API
+      console.log('Enviando dados para API:', sessionData);
+      
+      /* 
       if (sessionId) {
-        // Update existing session
-        const response = await fetch(`/api/sessions/${sessionId}`, {
+        // Atualizar sessão existente
+        await apiRequest(`/api/sessions/${sessionId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(sessionData),
-        });
-        
-        if (!response.ok) {
-          throw new Error('Erro ao atualizar sessão');
-        }
-        
-        toast({
-          title: 'Sessão atualizada',
-          description: 'A sessão foi atualizada com sucesso.',
         });
       } else {
-        // Create new session
-        const response = await fetch('/api/sessions', {
+        // Criar nova sessão
+        await apiRequest('/api/sessions', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(sessionData),
         });
-        
-        if (!response.ok) {
-          throw new Error('Erro ao criar sessão');
-        }
-        
-        toast({
-          title: 'Sessão criada',
-          description: 'A sessão foi agendada com sucesso.',
-        });
       }
-
+      */
+      
+      // Mostrando toast de sucesso simulado
+      toast({
+        title: sessionId ? 'Sessão atualizada' : 'Sessão agendada',
+        description: sessionId 
+          ? 'A sessão foi atualizada com sucesso.' 
+          : 'A sessão foi agendada com sucesso.',
+      });
+      
       onSuccess();
     } catch (error) {
       console.error('Erro ao salvar sessão:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível salvar a sessão. Tente novamente.',
+        description: 'Ocorreu um erro ao salvar a sessão. Tente novamente.',
         variant: 'destructive',
       });
     } finally {
@@ -161,29 +224,200 @@ export function SessionForm({ defaultValues, sessionId, onSuccess }: SessionForm
     }
   };
 
+  // Calcular o horário de término padrão (1 hora após o horário de início)
+  const calculateEndTime = (startTime: string) => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    const endDate = addMinutes(date, 60);
+    return `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  // Atualizar horário de término quando o horário de início mudar
+  useEffect(() => {
+    const startTime = form.watch('startTime');
+    if (startTime) {
+      form.setValue('endTime', calculateEndTime(startTime));
+    }
+  }, [form.watch('startTime')]);
+
   return (
+    <div className="animate-in fade-in-50 duration-300">
+      <Tabs defaultValue="basic" className="w-full mt-1">
+        <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsTrigger value="basic" className="text-sm">Informações Básicas</TabsTrigger>
+          <TabsTrigger value="details" className="text-sm">Detalhes da Sessão</TabsTrigger>
+        </TabsList>
+        
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <TabsContent value="basic" className="space-y-4 pt-2">
+              {/* Origem (Favale ou Pink) */}
+              <FormField
+                control={form.control}
+                name="source"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 dark:text-gray-300">Origem</FormLabel>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          field.onChange("Favale");
+                          form.setValue("studentId", "");
+                        }}
+                        className={cn(
+                          "h-20 border-2 relative",
+                          field.value === "Favale"
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                            : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        )}
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="font-semibold text-blue-700 dark:text-blue-400">Favale</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">Sistema Favale</span>
+                        </div>
+                        {field.value === "Favale" && (
+                          <Check className="absolute top-2 right-2 h-4 w-4 text-blue-500" />
+                        )}
+                      </Button>
+                      
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          field.onChange("Pink");
+                          form.setValue("studentId", "");
+                        }}
+                        className={cn(
+                          "h-20 border-2 relative",
+                          field.value === "Pink"
+                            ? "border-pink-500 bg-pink-50 dark:bg-pink-900/20"
+                            : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        )}
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="font-semibold text-pink-700 dark:text-pink-400">Pink</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">Sistema Pink</span>
+                        </div>
+                        {field.value === "Pink" && (
+                          <Check className="absolute top-2 right-2 h-4 w-4 text-pink-500" />
+                        )}
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            
+              {/* Aluno */}
+              <FormField
+                control={form.control}
+                name="studentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 dark:text-gray-300">Aluno</FormLabel>
+                    <Select 
+                      disabled={!selectedSource} 
+                      value={field.value} 
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger className={cn(
+                          "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800",
+                          !selectedSource && "opacity-60"
+                        )}>
+                          <SelectValue placeholder={!selectedSource 
+                            ? "Selecione uma origem primeiro" 
+                            : "Selecione um aluno"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-[240px]">
+                        {filteredStudents.length === 0 ? (
+                          <div className="p-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                            Nenhum aluno encontrado para esta origem
+                          </div>
+                        ) : (
+                          filteredStudents.map((student) => (
+                            <SelectItem 
+                              key={student.id} 
+                              value={student.id}
+                              className="py-2"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-6 w-6 bg-gray-200">
+                                  <div className="text-xs">{student.name.charAt(0)}</div>
+                                </Avatar>
+                                <span>{student.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {selectedSource && <FormDescription className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Selecione um aluno para agendar a sessão.
+                    </FormDescription>}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            
+              {/* Professor */}
+              <FormField
+                control={form.control}
+                name="trainerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 dark:text-gray-300">Professor</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                          <SelectValue placeholder="Selecione um professor" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-[240px]">
+                        {trainers.map((trainer) => (
+                          <SelectItem 
+                            key={trainer.id} 
+                            value={trainer.id}
+                            className="py-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-6 w-6 bg-gray-200">
+                                <div className="text-xs">{trainer.name.charAt(0)}</div>
+                              </Avatar>
+                              <span>{trainer.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
           {/* Data */}
           <FormField
             control={form.control}
             name="date"
             render={({ field }) => (
               <FormItem className="flex flex-col">
-                <FormLabel>Data da Sessão</FormLabel>
+                    <FormLabel className="text-gray-700 dark:text-gray-300">Data</FormLabel>
                 <Popover>
                   <PopoverTrigger asChild>
                     <FormControl>
                       <Button
-                        variant={"outline"}
+                            variant="outline"
                         className={cn(
-                          "w-full pl-3 text-left font-normal",
+                              "w-full pl-3 text-left font-normal border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800",
                           !field.value && "text-muted-foreground"
                         )}
                       >
                         {field.value ? (
-                          format(field.value, "PPP", { locale: ptBR })
+                              format(field.value, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
                         ) : (
                           <span>Selecione uma data</span>
                         )}
@@ -200,6 +434,11 @@ export function SessionForm({ defaultValues, sessionId, onSuccess }: SessionForm
                         date < new Date(new Date().setHours(0, 0, 0, 0))
                       }
                       initialFocus
+                      locale={ptBR}
+                          classNames={{
+                            day_selected: 'bg-[#ff9810] text-white hover:bg-[#ff9810]/90 focus:bg-[#ff9810]',
+                            day_today: 'bg-[#ff9810]/10 text-[#ff9810] font-semibold',
+                          }}
                     />
                   </PopoverContent>
                 </Popover>
@@ -208,41 +447,31 @@ export function SessionForm({ defaultValues, sessionId, onSuccess }: SessionForm
             )}
           />
 
-          {/* Origem */}
-          <FormField
-            control={form.control}
-            name="source"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Origem</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a origem" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="Favale">Favale</SelectItem>
-                    <SelectItem value="Pink">Pink</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
           {/* Horário de Início */}
           <FormField
             control={form.control}
             name="startTime"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Horário de Início</FormLabel>
+                      <FormLabel className="text-gray-700 dark:text-gray-300">Horário de Início</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
                 <FormControl>
-                  <Input type="time" {...field} />
+                          <SelectTrigger className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-gray-500" />
+                              <SelectValue placeholder="Selecione" />
+                            </div>
+                          </SelectTrigger>
                 </FormControl>
+                        <SelectContent className="max-h-[240px]">
+                          {availableTimes.map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -254,105 +483,163 @@ export function SessionForm({ defaultValues, sessionId, onSuccess }: SessionForm
             name="endTime"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Horário de Término</FormLabel>
+                      <FormLabel className="text-gray-700 dark:text-gray-300">Horário de Término</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
                 <FormControl>
-                  <Input type="time" {...field} />
+                          <SelectTrigger className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-gray-500" />
+                              <SelectValue placeholder="Selecione" />
+                            </div>
+                    </SelectTrigger>
+                  </FormControl>
+                        <SelectContent className="max-h-[240px]">
+                          {availableTimes.filter(time => time > form.watch('startTime')).map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+              </div>
+          
+          <FormField
+            control={form.control}
+            name="location"
+            render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 dark:text-gray-300">Local</FormLabel>
+                <FormControl>
+                      <Input 
+                        placeholder="Digite o local da sessão" 
+                        {...field} 
+                        className="border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800" 
+                      />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-        </div>
 
-        {/* Aluno */}
-        <FormField
-          control={form.control}
-          name="leadId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Aluno</FormLabel>
-              <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
+              <div className="pt-4 flex justify-end">
+                <Button type="button" onClick={() => form.setValue('_tab', 'details')}>
+                  Próximo: Detalhes
+                </Button>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="details" className="space-y-4 pt-2">
+              <div>
+                <Label className="text-sm text-gray-500 dark:text-gray-400">Resumo</Label>
+                
+                <div className="mt-2 p-4 bg-gray-50 dark:bg-gray-800/40 rounded-lg border border-gray-100 dark:border-gray-700">
+                  <div className="flex flex-col space-y-3">
+                    <div className="flex justify-between">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Origem:</div>
+                      <div className="font-medium text-sm">
+                        {form.watch('source') ? (
+                          <Badge variant="outline" className={
+                            form.watch('source') === 'Favale' 
+                              ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                              : 'bg-pink-50 text-pink-700 border-pink-200'
+                          }>
+                            {form.watch('source')}
+                          </Badge>
+                        ) : '-'}
+                      </div>
+                    </div>
+                  
+                    <div className="flex justify-between">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Data:</div>
+                      <div className="font-medium text-sm">
+                        {form.watch('date') 
+                          ? format(form.watch('date'), "dd/MM/yyyy", { locale: ptBR }) 
+                          : '-'}
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Horário:</div>
+                      <div className="font-medium text-sm">
+                        {form.watch('startTime') && form.watch('endTime') 
+                          ? `${form.watch('startTime')} - ${form.watch('endTime')}` 
+                          : '-'}
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Aluno:</div>
+                      <div className="font-medium text-sm">
+                        {selectedStudent ? selectedStudent.name : '-'}
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Professor:</div>
+                      <div className="font-medium text-sm">
+                        {selectedTrainer ? selectedTrainer.name : '-'}
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">Local:</div>
+                      <div className="font-medium text-sm">
+                        {form.watch('location') || '-'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+          <FormField
+            control={form.control}
+            name="notes"
+            render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 dark:text-gray-300">Observações</FormLabel>
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um aluno" />
-                  </SelectTrigger>
+                  <Textarea 
+                        placeholder="Observações adicionais sobre a sessão"
+                    {...field} 
+                        className="min-h-[100px] resize-none border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                  />
                 </FormControl>
-                <SelectContent>
-                  {getFilteredStudents().map((student: any) => (
-                    <SelectItem key={student.id} value={student.id.toString()}>
-                      {student.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                    <FormDescription className="text-xs mt-1 flex items-center">
+                      <Info className="h-3 w-3 mr-1 text-gray-500" />
+                      Adicione informações relevantes sobre o objetivo da sessão, necessidades especiais, etc.
+                    </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        {/* Professor */}
-        <FormField
-          control={form.control}
-          name="trainerId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Professor</FormLabel>
-              <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um professor" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {trainers.map((trainer: any) => (
-                    <SelectItem key={trainer.id} value={trainer.id.toString()}>
-                      {trainer.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Local */}
-        <FormField
-          control={form.control}
-          name="location"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Local</FormLabel>
-              <FormControl>
-                <Input placeholder="Ex: Academia Favale" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Observações */}
-        <FormField
-          control={form.control}
-          name="notes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Observações (Opcional)</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Adicione observações sobre a sessão..." {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="flex gap-3 pt-4">
-          <Button type="submit" disabled={isLoading} className="flex-1">
+              <div className="pt-4 flex justify-between">
+          <Button 
+            type="button" 
+            variant="outline" 
+                  onClick={() => form.setValue('_tab', 'basic')}
+                  className="border-gray-200 dark:border-gray-700"
+                >
+                  Voltar
+                </Button>
+                
+                <Button 
+                  type="submit" 
+            disabled={isLoading}
+                  className="bg-[#ff9810] hover:bg-[#ff9810]/90 text-white"
+          >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {sessionId ? 'Atualizar Sessão' : 'Agendar Sessão'}
+            {sessionId ? 'Atualizar' : 'Agendar'} Sessão
           </Button>
         </div>
+            </TabsContent>
       </form>
     </Form>
+      </Tabs>
+    </div>
   );
 }

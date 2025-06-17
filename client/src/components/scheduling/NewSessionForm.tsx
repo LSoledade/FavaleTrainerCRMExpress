@@ -1,811 +1,749 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Clock, MapPin, User, DollarSign, Repeat, Calendar } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { 
+  Command, 
+  CommandEmpty, 
+  CommandGroup, 
+  CommandInput, 
+  CommandItem,
+  CommandList
+} from '@/components/ui/command';
+import { 
+  Popover, 
+  PopoverContent, 
+  PopoverTrigger 
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { CalendarIcon, Loader2, Check, ChevronsUpDown, AlertTriangle, Clock } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useQuery } from '@tanstack/react-query';
 
-// Schema para o formulário
+// Schema para validação do formulário
 const sessionFormSchema = z.object({
-  leadId: z.number().min(1, 'Selecione um aluno'),
-  trainerId: z.number().min(1, 'Selecione um professor'),
-  date: z.date({ required_error: 'Selecione uma data' }),
-  startTime: z.string().min(1, 'Horário de início é obrigatório'),
-  endTime: z.string().min(1, 'Horário de fim é obrigatório'),
-  location: z.string().min(1, 'Local é obrigatório'),
-  source: z.enum(['Favale', 'Pink', 'FavalePink'], {
-    required_error: 'Selecione uma origem'
+  source: z.enum(["Favale", "Pink", "FavalePink"], {
+    required_error: "A origem é obrigatória.",
   }),
-  value: z.number().min(1, 'Valor deve ser maior que zero'),
-  service: z.string().min(1, 'Tipo de serviço é obrigatório'),
+  studentId: z.string().min(1, "Um aluno deve ser selecionado."),
+  trainerId: z.string().min(1, "Um professor deve ser selecionado."),
+  date: z.date({
+    required_error: "A data é obrigatória.",
+  }),
+  startTime: z.string({
+    required_error: "O horário de início é obrigatório.",
+  }),
+  endTime: z.string({
+    required_error: "O horário de término é obrigatório.",
+  }),
+  location: z.string().min(1, "O local é obrigatório."),
+  value: z.string().min(1, "O valor é obrigatório."),
+  service: z.string().min(1, "O tipo de serviço é obrigatório."),
+  isOneTime: z.boolean().default(false),
+  weeklyFrequency: z.string().optional(),
+  weekDays: z.array(z.string()).optional(),
   notes: z.string().optional(),
-  // Campos de recorrência
-  recurrenceType: z.enum(['none', 'daily', 'weekly', 'monthly', 'yearly', 'custom']).default('none'),
-  recurrenceInterval: z.number().min(1).default(1),
-  recurrenceWeekDays: z.array(z.enum(['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado', 'domingo'])).optional(),
-  recurrenceEndType: z.enum(['never', 'date', 'count']).default('never'),
-  recurrenceEndDate: z.date().optional(),
-  recurrenceEndCount: z.number().min(1).optional(),
-}).refine(data => {
-  // Validar horários
-  const start = new Date(`2000-01-01T${data.startTime}`);
-  const end = new Date(`2000-01-01T${data.endTime}`);
-  return end > start;
-}, {
-  message: 'Horário de fim deve ser posterior ao horário de início',
-  path: ['endTime']
-}).refine(data => {
-  // Validar campos de recorrência
-  if (data.recurrenceType === 'weekly' && (!data.recurrenceWeekDays || data.recurrenceWeekDays.length === 0)) {
-    return false;
+}).superRefine((data, ctx) => {
+  // Validação de horários
+  const startTime = new Date(`2024-01-01T${data.startTime}`);
+  const endTime = new Date(`2024-01-01T${data.endTime}`);
+  
+  if (endTime <= startTime) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "O horário de término deve ser posterior ao horário de início",
+      path: ["endTime"],
+    });
   }
-  if (data.recurrenceEndType === 'date' && !data.recurrenceEndDate) {
-    return false;
+
+  // Validação para sessões não avulsas
+  if (!data.isOneTime) {
+    if (!data.weeklyFrequency || parseInt(data.weeklyFrequency) < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Frequência semanal é obrigatória para sessões recorrentes",
+        path: ["weeklyFrequency"],
+      });
+    }
+    
+    if (!data.weekDays || data.weekDays.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Selecione pelo menos um dia da semana",
+        path: ["weekDays"],
+      });
+    }
   }
-  if (data.recurrenceEndType === 'count' && !data.recurrenceEndCount) {
-    return false;
-  }
-  return true;
-}, {
-  message: 'Configure corretamente as opções de recorrência',
-  path: ['recurrenceType']
 });
 
-type SessionFormData = z.infer<typeof sessionFormSchema>;
+type SessionFormValues = z.infer<typeof sessionFormSchema>;
 
-interface NewSessionFormProps {
-  leads: Array<{ id: number; name: string; source: string; status: string }>;
-  trainers: Array<{ id: number; name: string; source: string }>;
-  onSubmit: (data: SessionFormData) => void;
-  onCancel: () => void;
-  isLoading?: boolean;
+interface Student {
+  id: number;
+  name: string;
+  email: string;
+  tags: string[];
 }
 
-export function NewSessionForm({ leads, trainers, onSubmit, onCancel, isLoading }: NewSessionFormProps) {
-  const [showRecurrence, setShowRecurrence] = useState(false);
+interface Trainer {
+  id: number;
+  name: string;
+  email: string;
+  source: string;
+  active: boolean;
+}
+
+interface Conflict {
+  type: 'trainer_busy' | 'overlap';
+  message: string;
+  suggestion?: string;
+}
+
+interface SessionFormProps {
+  defaultValues?: Partial<SessionFormValues>;
+  sessionId?: number;
+  onSuccess: () => void;
+}
+
+const WEEK_DAYS = [
+  { value: "Segunda", label: "Segunda-feira" },
+  { value: "Terça", label: "Terça-feira" },
+  { value: "Quarta", label: "Quarta-feira" },
+  { value: "Quinta", label: "Quinta-feira" },
+  { value: "Sexta", label: "Sexta-feira" },
+  { value: "Sábado", label: "Sábado" },
+  { value: "Domingo", label: "Domingo" },
+];
+
+const TIME_SLOTS = [
+  "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", 
+  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+  "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", 
+  "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
+  "18:00", "18:30", "19:00", "19:30", "20:00", "20:30"
+];
+
+export function NewSessionForm({ defaultValues, sessionId, onSuccess }: SessionFormProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [studentOpen, setStudentOpen] = useState(false);
+  const [trainerOpen, setTrainerOpen] = useState(false);
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
   const { toast } = useToast();
 
-  const form = useForm<SessionFormData>({
+  const form = useForm<SessionFormValues>({
     resolver: zodResolver(sessionFormSchema),
     defaultValues: {
       date: new Date(),
       startTime: '09:00',
       endTime: '10:00',
-      value: 8000, // R$ 80,00 em centavos
+      location: '',
+      value: '',
       service: 'Personal Training',
-      recurrenceType: 'none',
-      recurrenceInterval: 1,
-      recurrenceEndType: 'never',
+      isOneTime: false,
+      weeklyFrequency: '2',
+      weekDays: [],
+      notes: '',
+      ...defaultValues,
     },
   });
 
-  const watchRecurrenceType = form.watch('recurrenceType');
-  const watchRecurrenceEndType = form.watch('recurrenceEndType');
-  const watchSource = form.watch('source');
+  // Buscar alunos (leads com tag "aluno")
+  const { data: students = [] } = useQuery<Student[]>({
+    queryKey: ['/api/leads'],
+    select: (leads: any[]) => leads.filter(lead => 
+      lead.tags?.includes('aluno') || lead.status === 'Aluno'
+    ).map(lead => ({
+      id: lead.id,
+      name: lead.name,
+      email: lead.email,
+      tags: lead.tags || []
+    }))
+  });
 
-  // Filtrar alunos por origem
-  const filteredLeads = leads.filter(lead => 
-    lead.status === 'Aluno' && 
-    (watchSource ? lead.source === watchSource : true)
-  );
+  // Buscar professores
+  const { data: allTrainers = [] } = useQuery<Trainer[]>({
+    queryKey: ['/api/trainers']
+  });
 
   // Filtrar professores por origem
-  const filteredTrainers = trainers.filter(trainer => 
-    watchSource ? trainer.source === watchSource || trainer.source === 'FavalePink' : true
-  );
+  const selectedSource = form.watch('source');
+  const filteredTrainers = selectedSource 
+    ? allTrainers.filter(trainer => 
+        trainer.active && 
+        (selectedSource === 'FavalePink' || trainer.source === selectedSource)
+      )
+    : [];
 
-  const recurrenceOptions = [
-    { value: 'none', label: 'Não se repete' },
-    { value: 'daily', label: 'Todos os dias' },
-    { value: 'weekly', label: 'Semanal' },
-    { value: 'monthly', label: 'Mensal' },
-    { value: 'yearly', label: 'Anual' },
-    { value: 'custom', label: 'Personalizar...' }
-  ];
-
-  const weekDaysOptions = [
-    { value: 'segunda', label: 'Segunda-feira' },
-    { value: 'terca', label: 'Terça-feira' },
-    { value: 'quarta', label: 'Quarta-feira' },
-    { value: 'quinta', label: 'Quinta-feira' },
-    { value: 'sexta', label: 'Sexta-feira' },
-    { value: 'sabado', label: 'Sábado' },
-    { value: 'domingo', label: 'Domingo' }
-  ];
-
-  const handleSubmit = (data: SessionFormData) => {
+  // Verificar conflitos em tempo real
+  const checkConflicts = async (trainerId: string, date: Date, startTime: string, endTime: string) => {
+    if (!trainerId || !date || !startTime || !endTime) return;
+    
+    setIsCheckingConflicts(true);
     try {
-      onSubmit(data);
-    } catch (error) {
-      toast({
-        title: 'Erro',
-        description: 'Erro ao agendar sessão. Tente novamente.',
-        variant: 'destructive'
+      const response = await apiRequest('POST', '/api/sessions/check-conflicts', {
+        trainerId: parseInt(trainerId),
+        date: format(date, 'yyyy-MM-dd'),
+        startTime,
+        endTime
       });
+      
+      setConflicts(response.conflicts || []);
+    } catch (error) {
+      console.error('Erro ao verificar conflitos:', error);
+      setConflicts([]);
+    } finally {
+      setIsCheckingConflicts(false);
     }
   };
 
+  // Monitorar mudanças para verificar conflitos
+  useEffect(() => {
+    const subscription = form.watch((values) => {
+      if (values.trainerId && values.date && values.startTime && values.endTime) {
+        const timeout = setTimeout(() => {
+          checkConflicts(values.trainerId!, values.date!, values.startTime!, values.endTime!);
+        }, 500); // Debounce
+        
+        return () => clearTimeout(timeout);
+      }
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form.watch]);
+
+  const onSubmit = async (values: SessionFormValues) => {
+    if (conflicts.length > 0) {
+      toast({
+        title: 'Conflitos detectados',
+        description: 'Resolva os conflitos antes de agendar a sessão.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const startDateTime = new Date(`${format(values.date, 'yyyy-MM-dd')}T${values.startTime}`);
+      const endDateTime = new Date(`${format(values.date, 'yyyy-MM-dd')}T${values.endTime}`);
+      
+      const sessionData = {
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
+        leadId: parseInt(values.studentId),
+        trainerId: parseInt(values.trainerId),
+        location: values.location,
+        value: Math.round(parseFloat(values.value) * 100), // Converter para centavos
+        service: values.service,
+        isOneTime: values.isOneTime,
+        weeklyFrequency: values.isOneTime ? null : parseInt(values.weeklyFrequency || '1'),
+        weekDays: values.isOneTime ? [] : values.weekDays,
+        notes: values.notes,
+        status: 'agendado',
+        source: values.source,
+        recurrenceGroupId: values.isOneTime ? null : crypto.randomUUID(),
+      };
+
+      if (sessionId) {
+        await apiRequest('PATCH', `/api/sessions/${sessionId}`, sessionData);
+        toast({
+          title: 'Sessão atualizada',
+          description: 'A sessão foi atualizada com sucesso!',
+        });
+      } else {
+        await apiRequest('POST', '/api/sessions', sessionData);
+        toast({
+          title: 'Sessão agendada',
+          description: 'A sessão foi agendada com sucesso!',
+        });
+      }
+
+      onSuccess();
+    } catch (error) {
+      console.error('Erro ao salvar sessão:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível salvar a sessão. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const selectedStudent = students.find(s => s.id.toString() === form.watch('studentId'));
+  const selectedTrainer = filteredTrainers.find(t => t.id.toString() === form.watch('trainerId'));
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Calendar className="h-5 w-5 text-blue-500" />
-        <h2 className="text-xl font-semibold">Agendar Nova Sessão</h2>
-      </div>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {/* Origem */}
+        <FormField
+          control={form.control}
+          name="source"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Origem *</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a origem" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="Favale">Favale</SelectItem>
+                  <SelectItem value="Pink">Pink</SelectItem>
+                  <SelectItem value="FavalePink">FavalePink</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-          {/* Informações básicas */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Informações Básicas</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="source"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Origem</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione a origem" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Favale">Favale</SelectItem>
-                          <SelectItem value="Pink">Pink</SelectItem>
-                          <SelectItem value="FavalePink">Favale&Pink</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="leadId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Aluno</FormLabel>
-                      <Select 
-                        onValueChange={(value) => field.onChange(parseInt(value))} 
-                        value={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione um aluno" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {filteredLeads.map((lead) => (
-                            <SelectItem key={lead.id} value={lead.id.toString()}>
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4" />
-                                {lead.name}
-                                <Badge variant="outline" className="text-xs">
-                                  {lead.source}
-                                </Badge>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="trainerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Professor</FormLabel>
-                      <Select 
-                        onValueChange={(value) => field.onChange(parseInt(value))} 
-                        value={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione um professor" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {filteredTrainers.map((trainer) => (
-                            <SelectItem key={trainer.id} value={trainer.id.toString()}>
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4" />
-                                {trainer.name}
-                                <Badge variant="outline" className="text-xs">
-                                  {trainer.source}
-                                </Badge>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Local</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input {...field} placeholder="Ex: Casa do aluno, Studio..." className="pl-10" />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="service"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo de Serviço</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o serviço" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Personal Training">Personal Training</SelectItem>
-                          <SelectItem value="Treino Funcional">Treino Funcional</SelectItem>
-                          <SelectItem value="Musculação">Musculação</SelectItem>
-                          <SelectItem value="Pilates">Pilates</SelectItem>
-                          <SelectItem value="Yoga">Yoga</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="value"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Valor (R$)</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <DollarSign className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input 
-                            {...field}
-                            type="number"
-                            step="0.01"
-                            placeholder="80.00"
-                            className="pl-10"
-                            onChange={(e) => field.onChange(Math.round(parseFloat(e.target.value || '0') * 100))}
-                            value={field.value ? (field.value / 100).toFixed(2) : ''}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Data e horário */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Data e Horário</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Data</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
+        {/* Aluno */}
+        <FormField
+          control={form.control}
+          name="studentId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Aluno *</FormLabel>
+              <Popover open={studentOpen} onOpenChange={setStudentOpen}>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={studentOpen}
+                      className="justify-between"
+                    >
+                      {selectedStudent
+                        ? selectedStudent.name
+                        : "Selecione um aluno..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="p-0">
+                  <Command>
+                    <CommandInput placeholder="Buscar aluno..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum aluno encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {students.map((student) => (
+                          <CommandItem
+                            key={student.id}
+                            value={`${student.name} ${student.email}`}
+                            onSelect={() => {
+                              form.setValue('studentId', student.id.toString());
+                              setStudentOpen(false);
+                            }}
+                          >
+                            <Check
                               className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
+                                "mr-2 h-4 w-4",
+                                selectedStudent?.id === student.id ? "opacity-100" : "opacity-0"
                               )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP", { locale: ptBR })
-                              ) : (
-                                <span>Selecione uma data</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <CalendarComponent
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="startTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Horário de Início</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input {...field} type="time" className="pl-10" />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="endTime"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Horário de Fim</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                          <Input {...field} type="time" className="pl-10" />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recorrência */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Repeat className="h-4 w-4" />
-                Repetir Sessão
-              </CardTitle>
-              <CardDescription>
-                Configure se esta sessão deve se repetir automaticamente
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="recurrenceType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Repetição</FormLabel>
-                    <Select onValueChange={(value) => {
-                      field.onChange(value);
-                      setShowRecurrence(value !== 'none');
-                    }} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione como repetir" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {recurrenceOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
+                            />
+                            <div>
+                              <div className="font-medium">{student.name}</div>
+                              <div className="text-sm text-gray-500">{student.email}</div>
+                            </div>
+                          </CommandItem>
                         ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-              {showRecurrence && watchRecurrenceType !== 'none' && (
-                <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                  {watchRecurrenceType === 'custom' && (
-                    <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <h4 className="font-medium text-blue-900 dark:text-blue-100">Recorrência personalizada</h4>
-                      
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600 dark:text-gray-300">Repetir a cada:</span>
-                        <FormField
-                          control={form.control}
-                          name="recurrenceInterval"
-                          render={({ field }) => (
-                            <FormItem className="flex-shrink-0">
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  type="number"
-                                  min="1"
-                                  max="30"
-                                  className="w-16 text-center"
-                                  onChange={(e) => field.onChange(parseInt(e.target.value || '1'))}
-                                />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                        <Select defaultValue="weekly">
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="daily">dia(s)</SelectItem>
-                            <SelectItem value="weekly">semana(s)</SelectItem>
-                            <SelectItem value="monthly">mês(es)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Repetir:</Label>
-                        <FormField
-                          control={form.control}
-                          name="recurrenceWeekDays"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex gap-1 mt-2">
-                                {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, index) => {
-                                  const dayValues = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
-                                  const dayValue = dayValues[index];
-                                  const isSelected = field.value?.includes(dayValue as any) || false;
-                                  
-                                  return (
-                                    <button
-                                      key={index}
-                                      type="button"
-                                      onClick={() => {
-                                        const current = field.value || [];
-                                        if (isSelected) {
-                                          field.onChange(current.filter(d => d !== dayValue));
-                                        } else {
-                                          field.onChange([...current, dayValue]);
-                                        }
-                                      }}
-                                      className={cn(
-                                        "w-8 h-8 rounded-full text-sm font-medium transition-colors",
-                                        isSelected 
-                                          ? "bg-blue-500 text-white" 
-                                          : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                                      )}
-                                    >
-                                      {day}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Termina em</Label>
-                        <FormField
-                          control={form.control}
-                          name="recurrenceEndType"
-                          render={({ field }) => (
-                            <FormItem className="mt-2">
-                              <div className="space-y-2">
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="radio"
-                                    id="never"
-                                    name="endType"
-                                    checked={field.value === 'never'}
-                                    onChange={() => field.onChange('never')}
-                                    className="w-4 h-4 text-blue-600"
-                                  />
-                                  <Label htmlFor="never" className="text-sm">Nunca</Label>
-                                </div>
-                                
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="radio"
-                                    id="date"
-                                    name="endType"
-                                    checked={field.value === 'date'}
-                                    onChange={() => field.onChange('date')}
-                                    className="w-4 h-4 text-blue-600"
-                                  />
-                                  <Label htmlFor="date" className="text-sm">Em</Label>
-                                  {watchRecurrenceEndType === 'date' && (
-                                    <FormField
-                                      control={form.control}
-                                      name="recurrenceEndDate"
-                                      render={({ field: dateField }) => (
-                                        <FormItem>
-                                          <FormControl>
-                                            <Input
-                                              type="date"
-                                              value={dateField.value ? format(dateField.value, 'yyyy-MM-dd') : ''}
-                                              onChange={(e) => dateField.onChange(new Date(e.target.value))}
-                                              className="text-sm"
-                                            />
-                                          </FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                  )}
-                                </div>
-                                
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="radio"
-                                    id="count"
-                                    name="endType"
-                                    checked={field.value === 'count'}
-                                    onChange={() => field.onChange('count')}
-                                    className="w-4 h-4 text-blue-600"
-                                  />
-                                  <Label htmlFor="count" className="text-sm">Após</Label>
-                                  {watchRecurrenceEndType === 'count' && (
-                                    <FormField
-                                      control={form.control}
-                                      name="recurrenceEndCount"
-                                      render={({ field: countField }) => (
-                                        <FormItem>
-                                          <FormControl>
-                                            <Input
-                                              {...countField}
-                                              type="number"
-                                              min="1"
-                                              max="100"
-                                              className="w-16 text-center text-sm"
-                                              onChange={(e) => countField.onChange(parseInt(e.target.value || '1'))}
-                                            />
-                                          </FormControl>
-                                        </FormItem>
-                                      )}
-                                    />
-                                  )}
-                                  {watchRecurrenceEndType === 'count' && (
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">ocorrências</span>
-                                  )}
-                                </div>
-                              </div>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {(watchRecurrenceType === 'daily' || watchRecurrenceType === 'weekly' || watchRecurrenceType === 'monthly') && watchRecurrenceType !== 'custom' && (
-                    <FormField
-                      control={form.control}
-                      name="recurrenceInterval"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            {watchRecurrenceType === 'daily' && 'Repetir a cada X dias'}
-                            {watchRecurrenceType === 'weekly' && 'Repetir a cada X semanas'}
-                            {watchRecurrenceType === 'monthly' && 'Repetir a cada X meses'}
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              type="number"
-                              min="1"
-                              max="30"
-                              onChange={(e) => field.onChange(parseInt(e.target.value || '1'))}
+        {/* Professor */}
+        <FormField
+          control={form.control}
+          name="trainerId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Professor *</FormLabel>
+              <Popover open={trainerOpen} onOpenChange={setTrainerOpen}>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={trainerOpen}
+                      className="justify-between"
+                      disabled={!selectedSource}
+                    >
+                      {selectedTrainer
+                        ? selectedTrainer.name
+                        : selectedSource 
+                          ? "Selecione um professor..."
+                          : "Primeiro selecione uma origem"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="p-0">
+                  <Command>
+                    <CommandInput placeholder="Buscar professor..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum professor encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredTrainers.map((trainer) => (
+                          <CommandItem
+                            key={trainer.id}
+                            value={trainer.name}
+                            onSelect={() => {
+                              form.setValue('trainerId', trainer.id.toString());
+                              setTrainerOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedTrainer?.id === trainer.id ? "opacity-100" : "opacity-0"
+                              )}
                             />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                            <div>
+                              <div className="font-medium">{trainer.name}</div>
+                              <div className="text-sm text-gray-500">{trainer.source}</div>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Data e Horários */}
+        <div className="grid grid-cols-3 gap-3">
+          <FormField
+            control={form.control}
+            name="date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Data *</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "pl-3 text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? (
+                          format(field.value, "dd/MM/yyyy", { locale: ptBR })
+                        ) : (
+                          <span>Selecione uma data</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      disabled={(date) => date < new Date()}
+                      initialFocus
+                      locale={ptBR}
                     />
-                  )}
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-                  {watchRecurrenceType === 'weekly' && watchRecurrenceType !== 'custom' && (
-                    <FormField
-                      control={form.control}
-                      name="recurrenceWeekDays"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Dias da Semana</FormLabel>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            {weekDaysOptions.map((day) => (
-                              <div key={day.value} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={day.value}
-                                  checked={field.value?.includes(day.value as any) || false}
-                                  onCheckedChange={(checked) => {
-                                    const current = field.value || [];
-                                    if (checked) {
-                                      field.onChange([...current, day.value]);
-                                    } else {
-                                      field.onChange(current.filter(d => d !== day.value));
-                                    }
-                                  }}
-                                />
-                                <Label htmlFor={day.value} className="text-sm">
-                                  {day.label}
-                                </Label>
-                              </div>
-                            ))}
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
+          <FormField
+            control={form.control}
+            name="startTime"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Início *</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Horário" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {TIME_SLOTS.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-                  <Separator />
+          <FormField
+            control={form.control}
+            name="endTime"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Término *</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Horário" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {TIME_SLOTS.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
-                  <FormField
-                    control={form.control}
-                    name="recurrenceEndType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Terminar</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Quando parar de repetir" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="never">Nunca</SelectItem>
-                            <SelectItem value="date">Em uma data específica</SelectItem>
-                            <SelectItem value="count">Após um número de ocorrências</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+        {/* Verificação de Conflitos */}
+        {isCheckingConflicts && (
+          <div className="flex items-center gap-2 text-sm text-blue-600">
+            <Clock className="h-4 w-4 animate-spin" />
+            Verificando disponibilidade...
+          </div>
+        )}
 
-                  {watchRecurrenceEndType === 'date' && (
-                    <FormField
-                      control={form.control}
-                      name="recurrenceEndDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Data Final</FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant="outline"
-                                  className={cn(
-                                    "w-full pl-3 text-left font-normal",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  {field.value ? (
-                                    format(field.value, "PPP", { locale: ptBR })
-                                  ) : (
-                                    <span>Selecione a data final</span>
-                                  )}
-                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <CalendarComponent
-                                mode="single"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) => date < new Date()}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-
-                  {watchRecurrenceEndType === 'count' && (
-                    <FormField
-                      control={form.control}
-                      name="recurrenceEndCount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Número de Ocorrências</FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              type="number"
-                              min="1"
-                              max="100"
-                              placeholder="Ex: 10"
-                              onChange={(e) => field.onChange(parseInt(e.target.value || '1'))}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+        {conflicts.length > 0 && (
+          <div className="space-y-2">
+            {conflicts.map((conflict, index) => (
+              <div key={index} className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-red-800">{conflict.message}</p>
+                  {conflict.suggestion && (
+                    <p className="text-sm text-red-600 mt-1">{conflict.suggestion}</p>
                   )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Observações */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Observações</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notas (opcional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="Observações sobre a sessão..."
-                        className="min-h-[80px]"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Ações */}
-          <div className="flex gap-3 justify-end">
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Agendando...' : 'Agendar Sessão'}
-            </Button>
+              </div>
+            ))}
           </div>
-        </form>
-      </Form>
-    </div>
+        )}
+
+        {/* Local, Valor e Serviço */}
+        <div className="grid grid-cols-3 gap-3">
+          <FormField
+            control={form.control}
+            name="location"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Local *</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: Studio Favale" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="value"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Valor (R$) *</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="Ex: 150.00" 
+                    type="number" 
+                    step="0.01" 
+                    {...field} 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="service"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Serviço *</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: Personal Training" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Sessão Avulsa */}
+        <FormField
+          control={form.control}
+          name="isOneTime"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base">
+                  Sessão Avulsa
+                </FormLabel>
+                <div className="text-sm text-muted-foreground">
+                  Marque se esta é uma sessão única (não recorrente)
+                </div>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        {/* Configurações de Recorrência */}
+        {!form.watch('isOneTime') && (
+          <div className="space-y-3 p-3 border rounded-lg bg-gray-50 dark:bg-gray-800/50">
+            <h3 className="text-sm font-medium">Configurações de Recorrência</h3>
+            
+            <FormField
+              control={form.control}
+              name="weeklyFrequency"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Frequência Semanal *</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Quantas vezes por semana" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5, 6, 7].map((freq) => (
+                        <SelectItem key={freq} value={freq.toString()}>
+                          {freq} {freq === 1 ? 'vez' : 'vezes'} por semana
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="weekDays"
+              render={() => (
+                <FormItem>
+                  <FormLabel>Dias da Semana *</FormLabel>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {WEEK_DAYS.map((day) => (
+                      <FormField
+                        key={day.value}
+                        control={form.control}
+                        name="weekDays"
+                        render={({ field }) => {
+                          return (
+                            <FormItem
+                              key={day.value}
+                              className="flex flex-row items-start space-x-3 space-y-0"
+                            >
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value?.includes(day.value)}
+                                  onCheckedChange={(checked) => {
+                                    return checked
+                                      ? field.onChange([...field.value || [], day.value])
+                                      : field.onChange(
+                                          field.value?.filter(
+                                            (value) => value !== day.value
+                                          ) || []
+                                        )
+                                  }}
+                                />
+                              </FormControl>
+                              <FormLabel className="text-sm font-normal">
+                                {day.label}
+                              </FormLabel>
+                            </FormItem>
+                          )
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+
+        {/* Observações */}
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Observações</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Observações adicionais sobre a sessão..."
+                  className="resize-none"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Botões */}
+        <div className="flex justify-end gap-2">
+          <Button
+            type="submit"
+            disabled={isLoading || conflicts.length > 0}
+            className="bg-[#ff9810] hover:bg-[#ff9810]/90"
+          >
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {sessionId ? 'Atualizar' : 'Agendar'} Sessão
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 }

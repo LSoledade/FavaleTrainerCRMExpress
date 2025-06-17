@@ -153,19 +153,15 @@ export const sessions = pgTable("sessions", {
   location: text("location").notNull(), // Endereço do treino
   value: integer("value").notNull(), // Valor em centavos (R$)
   service: text("service").notNull(), // Tipo do serviço
+  isOneTime: boolean("is_one_time").default(false).notNull(), // Sessão avulsa
+  weeklyFrequency: integer("weekly_frequency"), // Quantas vezes na semana (apenas se não for avulsa)
+  weekDays: text("week_days").array(), // Dias da semana (apenas se não for avulsa)
   notes: text("notes"),
   status: text("status").default("agendado").notNull(), // agendado, concluído, cancelado, remarcado
   source: text("source").notNull(), // "Favale", "Pink" ou "FavalePink"
-  // Campos para recorrência (estilo Google Calendar)
-  recurrenceType: text("recurrence_type").default("none").notNull(), // none, daily, weekly, monthly, yearly, custom
-  recurrenceInterval: integer("recurrence_interval").default(1), // A cada X dias/semanas/meses
-  recurrenceWeekDays: text("recurrence_week_days").array(), // Para recorrência semanal: ["segunda", "quarta", "sexta"]
-  recurrenceEndType: text("recurrence_end_type").default("never").notNull(), // never, date, count
-  recurrenceEndDate: timestamp("recurrence_end_date"), // Data limite para recorrência
-  recurrenceEndCount: integer("recurrence_end_count"), // Número de ocorrências
+  // Campos para sessões recorrentes
+  parentSessionId: integer("parent_session_id"), // ID da primeira sessão da série
   recurrenceGroupId: text("recurrence_group_id"), // UUID para agrupar toda a série
-  isRecurrenceParent: boolean("is_recurrence_parent").default(false), // Primeira sessão da série
-  parentSessionId: integer("parent_session_id"), // ID da sessão pai (primeira da série)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -200,6 +196,9 @@ export const sessionBaseValidationSchema = insertSessionSchema.extend({
   location: z.string().min(1, "O local é obrigatório"),
   value: z.number().int().positive("O valor deve ser maior que zero"),
   service: z.string().min(1, "O serviço é obrigatório"),
+  isOneTime: z.boolean().optional(),
+  weeklyFrequency: z.number().int().positive("Frequência semanal deve ser um número positivo").optional(),
+  weekDays: z.array(z.enum(["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"])).optional(),
   notes: z.string().optional(),
   status: z.enum(["agendado", "concluído", "cancelado", "remarcado"], {
     errorMap: () => ({ message: "Status deve ser 'agendado', 'concluído', 'cancelado' ou 'remarcado'" })
@@ -207,26 +206,8 @@ export const sessionBaseValidationSchema = insertSessionSchema.extend({
   source: z.enum(["Favale", "Pink", "FavalePink"], {
     errorMap: () => ({ message: "Origem deve ser 'Favale', 'Pink' ou 'FavalePink'" })
   }),
-  // Campos de recorrência estilo Google Calendar
-  recurrenceType: z.enum(["none", "daily", "weekly", "monthly", "yearly", "custom"], {
-    errorMap: () => ({ message: "Tipo de recorrência inválido" })
-  }).default("none"),
-  recurrenceInterval: z.number().int().positive("Intervalo deve ser um número positivo").default(1),
-  recurrenceWeekDays: z.array(z.enum(["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"])).optional(),
-  recurrenceEndType: z.enum(["never", "date", "count"], {
-    errorMap: () => ({ message: "Tipo de fim de recorrência inválido" })
-  }).default("never"),
-  recurrenceEndDate: z.preprocess((arg) => {
-    if (typeof arg === "string" || arg instanceof Date) return arg;
-    return undefined;
-  }, z.union([
-    z.string().transform(val => new Date(val)),
-    z.date()
-  ])).optional(),
-  recurrenceEndCount: z.number().int().positive("Número de ocorrências deve ser positivo").optional(),
-  recurrenceGroupId: z.string().optional(),
-  isRecurrenceParent: z.boolean().default(false),
   parentSessionId: z.number().int().positive("ID da sessão pai inválido").optional(),
+  recurrenceGroupId: z.string().optional(),
 });
 
 // Validação adicional para a criação de sessões
