@@ -19,6 +19,9 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { ThemeProvider } from "@/components/theme-provider";
 
 import { AuthProvider } from "@/hooks/use-auth";
+import { LeadProvider } from "@/context/LeadContext";
+import { WhatsappProvider } from "@/context/WhatsappContext";
+import { TaskProvider } from "@/context/TaskContext";
 import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage";
 import ErrorBoundary from "@/components/ErrorBoundary"; // Adicionado ErrorBoundary
 
@@ -50,14 +53,20 @@ function App() {
     <ThemeProvider>
       <TooltipProvider>
         <AuthProvider>
-          {isAuthPage ? (
-            <Router />
-          ) : (
-            <Layout>
-              <Router />
-            </Layout>
-          )}
-          <Toaster />
+          <LeadProvider>
+            <WhatsappProvider>
+              <TaskProvider>
+                {isAuthPage ? (
+                  <Router />
+                ) : (
+                  <Layout>
+                    <Router />
+                  </Layout>
+                )}
+                <Toaster />
+              </TaskProvider>
+            </WhatsappProvider>
+          </LeadProvider>
         </AuthProvider>
       </TooltipProvider>
     </ThemeProvider>
