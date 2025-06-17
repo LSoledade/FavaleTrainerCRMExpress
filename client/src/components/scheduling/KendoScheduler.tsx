@@ -198,7 +198,6 @@ export function KendoScheduler({ onNewSession }: KendoSchedulerProps) {
     onViewChange: ({ value }: { value: string }) => setView(value),
     editable: true,
     height: 600,
-    timezone: 'America/Sao_Paulo',
     workDayStart: '06:00',
     workDayEnd: '22:00',
     workWeekStart: 1, // Segunda-feira
