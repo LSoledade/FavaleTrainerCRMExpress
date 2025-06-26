@@ -3,7 +3,7 @@ import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut, User, Bell, HelpCircle, Sun, Moon } from "lucide-react";
+import { LogOut, User, Sun, Moon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,25 +23,15 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
   const { user, logoutMutation } = useAuth();
   
   const toggleTheme = () => {
-    if (theme === "light") {
-      setTheme("dark");
-    } else if (theme === "dark") {
-      setTheme("system");
-    } else {
-      setTheme("light");
-    }
+    setTheme(theme === "light" ? "dark" : "light");
   };
   
   const getThemeIcon = () => {
-    if (theme === "light") return <Moon className="h-4 w-4" />;
-    if (theme === "dark") return <Sun className="h-4 w-4" />;
-    return <Sun className="h-4 w-4" />; // system theme
+    return theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />;
   };
   
   const getThemeTitle = () => {
-    if (theme === "light") return "Mudar para tema escuro";
-    if (theme === "dark") return "Mudar para tema do sistema";
-    return "Mudar para tema claro";
+    return theme === "light" ? "Mudar para tema escuro" : "Mudar para tema claro";
   };
   
   const getPageTitle = () => {
@@ -92,22 +82,6 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
       </div>
       
       <div className="flex items-center space-x-2">
-        <Button 
-          variant="outline" 
-          size="sm"
-          className="font-normal text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 flex items-center gap-1 h-9"
-        >
-          <HelpCircle className="h-4 w-4" />
-        </Button>
-        
-        <Button 
-          variant="outline" 
-          size="sm"
-          className="font-normal text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 flex items-center gap-1 h-9"
-        >
-          <Bell className="h-4 w-4" />
-        </Button>
-        
         <Button 
           variant="outline" 
           size="sm"
