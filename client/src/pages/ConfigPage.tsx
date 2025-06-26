@@ -212,16 +212,15 @@ export default function ConfigPage() {
   };
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <Card className="border-gray-100 dark:border-gray-700 shadow-sm rounded-xl">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-xl font-semibold text-gray-800 dark:text-white">Configurações</CardTitle>
-          <CardDescription className="text-gray-500 dark:text-gray-400">
-            Gerencie as configurações da sua conta e do sistema
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Configurações</h1>
+        <p className="text-gray-500 dark:text-gray-400">
+          Gerencie as configurações da sua conta e do sistema
+        </p>
+      </div>
+      
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList className="bg-gray-100 dark:bg-gray-800 mb-4">
               <TabsTrigger 
                 value="profile" 
@@ -773,9 +772,7 @@ export default function ConfigPage() {
                 </Card>
               </TabsContent>
             )}
-          </Tabs>
-        </CardContent>
-      </Card>
+      </Tabs>
     </div>
   );
 }
