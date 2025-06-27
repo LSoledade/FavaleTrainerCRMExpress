@@ -187,12 +187,6 @@ export default function AppointmentDetailsDialog({
               <CardContent className="space-y-3">
                 <div>
                   <p className="font-medium text-lg">{appointment.student.name}</p>
-                  {appointment.student.company && (
-                    <p className="text-sm text-gray-600 flex items-center gap-1">
-                      <Building className="h-4 w-4" />
-                      {appointment.student.company}
-                    </p>
-                  )}
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

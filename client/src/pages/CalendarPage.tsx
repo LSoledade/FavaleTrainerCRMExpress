@@ -368,12 +368,19 @@ export default function CalendarPage() {
         </CardContent>
       </Card>
 
-      {/* Appointment Dialog */}
+      {/* Create/Edit Appointment Dialog */}
       <MultiDateAppointmentDialog
         isOpen={isAppointmentDialogOpen}
         onClose={handleAppointmentDialogClose}
-        appointment={selectedEvent}
         professors={professors}
+      />
+
+      {/* Appointment Details Dialog */}
+      <AppointmentDetailsDialog
+        isOpen={isDetailsDialogOpen}
+        onClose={handleDetailsDialogClose}
+        appointment={selectedEvent}
+        onEdit={handleEditAppointment}
       />
     </div>
   );

@@ -148,3 +148,10 @@ Changelog:
   - Added recurring appointment scheduling with weekly/daily/monthly patterns
   - Created API endpoints for professor CRUD and class management
   - Added sample professors and students for testing functionality
+  - Enhanced calendar display with complete appointment information:
+    - Calendar shows service name, student name, and professor name in each event
+    - Created detailed appointment view dialog with full information display
+    - Added professor and student details in appointment tooltips
+    - Implemented separate dialogs for creation (multi-date) and viewing (details)
+    - Calendar events show status-based color coding
+    - Integrated edit and delete functionality from details dialog
