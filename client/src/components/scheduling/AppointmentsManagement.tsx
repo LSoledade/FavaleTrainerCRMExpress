@@ -259,10 +259,6 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
     }
   };
 
-  if (isLoading) {
-    return <div>Carregando agendamentos...</div>;
-  }
-
   // Statistics calculation
   const statistics = useMemo(() => {
     const total = appointments.length;
@@ -274,6 +270,10 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
     
     return { total, recurring, individual, scheduled, completed, cancelled };
   }, [appointments]);
+
+  if (isLoading) {
+    return <div>Carregando agendamentos...</div>;
+  }
 
   return (
     <div className="space-y-6">
