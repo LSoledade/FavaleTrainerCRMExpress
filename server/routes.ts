@@ -3,11 +3,12 @@ import { createServer, type Server } from "http";
 import { storage, type IStorage } from "./storage";
 import { db } from "./db";
 import { 
-  leads, sessions,
+  leads, sessions, users, aulas, agendamentosRecorrentes,
   insertLeadSchema, leadValidationSchema, whatsappMessageValidationSchema,
   taskValidationSchema, taskCommentValidationSchema,
   type Session, type Student, type WhatsappMessage
 } from "@shared/schema";
+import { eq, desc, and, or, like, isNull, isNotNull, count, sql, inArray, gte, lte } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { fromZodError } from "zod-validation-error";
 import { setupAuth } from "./auth";
@@ -694,6 +695,180 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Erro ao deletar sessão:', error);
       res.status(500).json({ message: "Erro ao deletar sessão" });
+    }
+  });
+
+  // Professor routes
+  app.get('/api/users/professors', async (req, res) => {
+    try {
+      const professors = await db.select()
+        .from(schema.users)
+        .where(eq(schema.users.role, 'professor'));
+      
+      res.json(professors);
+    } catch (error) {
+      console.error('Erro ao buscar professores:', error);
+      res.status(500).json({ message: "Erro ao buscar professores" });
+    }
+  });
+
+  app.post('/api/users/professors', async (req, res) => {
+    try {
+      const professorData = req.body;
+      
+      // Hash password if provided
+      if (professorData.password) {
+        const bcrypt = await import('bcrypt');
+        professorData.password = await bcrypt.hash(professorData.password, 10);
+      }
+      
+      const [professor] = await db.insert(schema.users)
+        .values({
+          ...professorData,
+          role: 'professor'
+        })
+        .returning();
+      
+      res.json(professor);
+    } catch (error) {
+      console.error('Erro ao criar professor:', error);
+      res.status(500).json({ message: "Erro ao criar professor" });
+    }
+  });
+
+  app.patch('/api/users/professors/:id', async (req, res) => {
+    try {
+      const professorId = parseInt(req.params.id);
+      const updateData = req.body;
+      
+      // Hash password if provided
+      if (updateData.password) {
+        const bcrypt = await import('bcrypt');
+        updateData.password = await bcrypt.hash(updateData.password, 10);
+      }
+      
+      const [professor] = await db.update(schema.users)
+        .set(updateData)
+        .where(eq(schema.users.id, professorId))
+        .returning();
+      
+      res.json(professor);
+    } catch (error) {
+      console.error('Erro ao atualizar professor:', error);
+      res.status(500).json({ message: "Erro ao atualizar professor" });
+    }
+  });
+
+  // New scheduling routes
+  app.get('/api/new-scheduling/classes', async (req, res) => {
+    try {
+      const { start, end, professorId, status } = req.query;
+      
+      let query = db.select()
+        .from(schema.aulas)
+        .leftJoin(schema.users, eq(schema.aulas.professorId, schema.users.id))
+        .leftJoin(schema.leads, eq(schema.aulas.studentId, schema.leads.id));
+      
+      const conditions = [];
+      
+      if (start && end) {
+        conditions.push(
+          and(
+            gte(schema.aulas.startTime, new Date(start as string)),
+            lte(schema.aulas.endTime, new Date(end as string))
+          )
+        );
+      }
+      
+      if (professorId && professorId !== 'all') {
+        conditions.push(eq(schema.aulas.professorId, parseInt(professorId as string)));
+      }
+      
+      if (status && status !== 'all') {
+        conditions.push(eq(schema.aulas.status, status as string));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      const aulas = await query;
+      
+      // Format the data for the frontend
+      const formattedAulas = aulas.map(row => ({
+        ...row.aulas,
+        title: `${row.aulas?.service || 'Aula'} - ${row.leads?.name || 'Aluno'}`,
+        professor: row.users,
+        student: row.leads
+      }));
+      
+      res.json(formattedAulas);
+    } catch (error) {
+      console.error('Erro ao buscar aulas:', error);
+      res.status(500).json({ message: "Erro ao buscar aulas" });
+    }
+  });
+
+  app.patch('/api/new-scheduling/classes/:id', async (req, res) => {
+    try {
+      const aulaId = parseInt(req.params.id);
+      const updateData = req.body;
+      
+      const [aula] = await db.update(schema.aulas)
+        .set({
+          ...updateData,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.aulas.id, aulaId))
+        .returning();
+      
+      res.json(aula);
+    } catch (error) {
+      console.error('Erro ao atualizar aula:', error);
+      res.status(500).json({ message: "Erro ao atualizar aula" });
+    }
+  });
+
+  app.post('/api/new-scheduling/recurrent', async (req, res) => {
+    try {
+      const {
+        professorId,
+        studentId,
+        location,
+        value,
+        service,
+        notes,
+        regras,
+        startDate,
+        endDate,
+        maxOccurrences,
+        active = true
+      } = req.body;
+
+      // Create the recurrent schedule
+      const [agendamento] = await db.insert(schema.agendamentosRecorrentes)
+        .values({
+          professorId,
+          studentId,
+          location,
+          value,
+          service,
+          notes,
+          regras,
+          startDate: new Date(startDate),
+          endDate: endDate ? new Date(endDate) : null,
+          maxOccurrences,
+          active
+        })
+        .returning();
+
+      // Generate individual classes based on recurrence rules
+      await generateClassesFromRecurrence(agendamento);
+
+      res.json(agendamento);
+    } catch (error) {
+      console.error('Erro ao criar agendamento recorrente:', error);
+      res.status(500).json({ message: "Erro ao criar agendamento recorrente" });
     }
   });
 
