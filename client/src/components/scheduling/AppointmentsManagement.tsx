@@ -263,8 +263,72 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
     return <div>Carregando agendamentos...</div>;
   }
 
+  // Statistics calculation
+  const statistics = useMemo(() => {
+    const total = appointments.length;
+    const recurring = appointments.filter(a => a.recurrenceGroupId).length;
+    const individual = total - recurring;
+    const scheduled = appointments.filter(a => a.status === 'agendado' || a.status === 'SCHEDULED').length;
+    const completed = appointments.filter(a => a.status === 'concluido' || a.status === 'COMPLETED').length;
+    const cancelled = appointments.filter(a => a.status === 'cancelado' || a.status === 'CANCELLED').length;
+    
+    return { total, recurring, individual, scheduled, completed, cancelled };
+  }, [appointments]);
+
   return (
     <div className="space-y-6">
+      {/* Statistics */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">{statistics.total}</div>
+              <div className="text-sm text-gray-600">Total</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{statistics.scheduled}</div>
+              <div className="text-sm text-gray-600">Agendadas</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{statistics.completed}</div>
+              <div className="text-sm text-gray-600">Realizadas</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">{statistics.cancelled}</div>
+              <div className="text-sm text-gray-600">Canceladas</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">{statistics.recurring}</div>
+              <div className="text-sm text-gray-600">Recorrentes</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">{statistics.individual}</div>
+              <div className="text-sm text-gray-600">Individuais</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -380,7 +444,7 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
                           <Badge className={getSourceColor(group.source)}>
                             {group.source}
                           </Badge>
-                          <Badge className={STATUS_LABELS[group.status as keyof typeof STATUS_LABELS]?.color || "bg-gray-500"}>
+                          <Badge className={`${STATUS_LABELS[group.status as keyof typeof STATUS_LABELS]?.color || "bg-gray-500"} ${STATUS_LABELS[group.status as keyof typeof STATUS_LABELS]?.textColor || "text-white"}`}>
                             {STATUS_LABELS[group.status as keyof typeof STATUS_LABELS]?.label || group.status}
                           </Badge>
                           <AlertDialog>
@@ -411,7 +475,7 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-gray-500" />
                           <span>{group.timeSlot}</span>
@@ -423,6 +487,26 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-gray-500" />
                           <span>{group.sessions.length} aulas agendadas</span>
+                        </div>
+                      </div>
+                      
+                      {/* Status breakdown for this group */}
+                      <div className="mb-4">
+                        <p className="text-sm font-medium mb-2">Status das aulas:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(
+                            group.sessions.reduce((acc, session) => {
+                              acc[session.status] = (acc[session.status] || 0) + 1;
+                              return acc;
+                            }, {} as Record<string, number>)
+                          ).map(([status, count]) => (
+                            <div key={status} className="flex items-center gap-1">
+                              <Badge className={`${STATUS_LABELS[status as keyof typeof STATUS_LABELS]?.color || "bg-gray-500"} ${STATUS_LABELS[status as keyof typeof STATUS_LABELS]?.textColor || "text-white"} text-xs`}>
+                                {STATUS_LABELS[status as keyof typeof STATUS_LABELS]?.label || status}
+                              </Badge>
+                              <span className="text-xs text-gray-600">({count})</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                       {group.nextSession && (
@@ -528,7 +612,7 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="outline" size="sm">
-                            <Badge className={STATUS_LABELS[appointment.status as keyof typeof STATUS_LABELS]?.color || "bg-gray-500"}>
+                            <Badge className={`${STATUS_LABELS[appointment.status as keyof typeof STATUS_LABELS]?.color || "bg-gray-500"} ${STATUS_LABELS[appointment.status as keyof typeof STATUS_LABELS]?.textColor || "text-white"}`}>
                               {STATUS_LABELS[appointment.status as keyof typeof STATUS_LABELS]?.label || appointment.status}
                             </Badge>
                             <MoreVertical className="h-4 w-4 ml-2" />
@@ -564,6 +648,25 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
             </CardContent>
           </Card>
         )}
+
+        {/* Status Legend */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Legenda de Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {Object.entries(STATUS_LABELS).map(([key, value]) => (
+                <div key={key} className="flex items-center gap-2">
+                  <Badge className={`${value.color} ${value.textColor} text-xs`}>
+                    {key}
+                  </Badge>
+                  <span className="text-sm text-gray-600">{value.label}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
