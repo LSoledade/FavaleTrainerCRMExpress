@@ -404,7 +404,6 @@ export default function CalendarPage() {
       <RecurringAppointmentDialog
         isOpen={isRecurringDialogOpen}
         onClose={handleRecurringDialogClose}
-        professors={professors}
       />
     </div>
   );
