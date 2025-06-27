@@ -733,8 +733,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const appointments = await db.select({
         id: aulas.id,
         title: aulas.service,
-        start: aulas.startTime,
-        end: aulas.endTime,
+        service: aulas.service,
+        startTime: aulas.startTime,
+        endTime: aulas.endTime,
         location: aulas.location,
         value: aulas.value,
         notes: aulas.notes,

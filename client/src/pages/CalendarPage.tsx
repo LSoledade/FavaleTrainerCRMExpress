@@ -35,7 +35,6 @@ export default function CalendarPage() {
   const [currentView, setCurrentView] = useState<View>("month");
   const [selectedEvent, setSelectedEvent] = useState<IAula | null>(null);
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
-  const [isNewRecurrenceFormOpen, setIsNewRecurrenceFormOpen] = useState(false);
   const [filterProfessor, setFilterProfessor] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   
@@ -48,34 +47,37 @@ export default function CalendarPage() {
     let endOfPeriod: moment.Moment;
 
     switch (currentView) {
-      case 'month':
-        startOfPeriod = moment(currentDate).startOf('month');
-        endOfPeriod = moment(currentDate).endOf('month');
+      case "day":
+        startOfPeriod = moment(currentDate).startOf("day");
+        endOfPeriod = moment(currentDate).endOf("day");
         break;
-      case 'week':
-      case 'work_week':
-        startOfPeriod = moment(currentDate).startOf('week');
-        endOfPeriod = moment(currentDate).endOf('week');
+      case "week":
+        startOfPeriod = moment(currentDate).startOf("week");
+        endOfPeriod = moment(currentDate).endOf("week");
         break;
-      case 'day':
-        startOfPeriod = moment(currentDate).startOf('day');
-        endOfPeriod = moment(currentDate).endOf('day');
+      case "month":
+        startOfPeriod = moment(currentDate).startOf("month").startOf("week");
+        endOfPeriod = moment(currentDate).endOf("month").endOf("week");
         break;
       default:
-        startOfPeriod = moment(currentDate).startOf('month');
-        endOfPeriod = moment(currentDate).endOf('month');
+        startOfPeriod = moment(currentDate).startOf("month");
+        endOfPeriod = moment(currentDate).endOf("month");
     }
 
+    // Add buffer to ensure we capture all events
     const start = startOfPeriod.subtract(1, 'week').toDate();
     const end = endOfPeriod.add(1, 'week').toDate();
     return { start, end };
   }, [currentDate, currentView]);
 
-  // Fetch classes/events
-  const { data: aulas = [], isLoading: isLoadingAulas, error: aulasError, refetch } = useQuery({
+  // Fetch appointments/classes
+  const { data: appointments = [], isLoading: isLoadingAppointments, error: appointmentsError, refetch } = useQuery({
     queryKey: ["/api/appointments", dateRange],
     queryFn: async () => {
       const response = await fetch("/api/appointments");
+      if (!response.ok) {
+        throw new Error('Failed to fetch appointments');
+      }
       return response.json();
     },
   });
@@ -86,23 +88,39 @@ export default function CalendarPage() {
     select: (data) => data as IProfessor[]
   });
 
-  // Transform aulas for react-big-calendar
+  // Transform appointments for react-big-calendar
   const events: Event[] = useMemo(() => {
-    return aulas.map((aula: IAula) => ({
-      id: aula.id,
-      title: aula.title,
-      start: new Date(aula.startTime),
-      end: new Date(aula.endTime),
-      resource: aula,
+    let filteredAppointments = appointments;
+
+    // Apply professor filter
+    if (filterProfessor !== "all") {
+      filteredAppointments = filteredAppointments.filter(
+        (appointment: IAula) => appointment.professorId === parseInt(filterProfessor)
+      );
+    }
+
+    // Apply status filter
+    if (filterStatus !== "all") {
+      filteredAppointments = filteredAppointments.filter(
+        (appointment: IAula) => appointment.status === filterStatus
+      );
+    }
+
+    return filteredAppointments.map((appointment: IAula) => ({
+      id: appointment.id,
+      title: appointment.title || appointment.service || "Aula",
+      start: new Date(appointment.startTime),
+      end: new Date(appointment.endTime),
+      resource: appointment,
     }));
-  }, [aulas]);
+  }, [appointments, filterProfessor, filterStatus]);
 
   // Event style getter for color coding
   const eventStyleGetter = useCallback((event: Event) => {
-    const aula = event.resource as IAula;
+    const appointment = event.resource as IAula;
     let backgroundColor = '#3174ad'; // default blue
     
-    switch (aula.status) {
+    switch (appointment.status) {
       case 'agendado':
         backgroundColor = '#3b82f6'; // blue
         break;
@@ -124,10 +142,12 @@ export default function CalendarPage() {
       style: {
         backgroundColor,
         borderRadius: '4px',
-        opacity: aula.status === 'cancelado' ? 0.6 : 0.9,
+        opacity: 0.8,
         color: 'white',
-        border: 'none',
-        display: 'block'
+        border: '0px',
+        display: 'block',
+        fontSize: '0.875rem',
+        padding: '2px 4px',
       }
     };
   }, []);
@@ -138,7 +158,7 @@ export default function CalendarPage() {
     setIsAppointmentDialogOpen(true);
   }, []);
 
-  // Handle navigation
+  // Handle date navigation
   const handleNavigate = useCallback((newDate: Date) => {
     setCurrentDate(newDate);
   }, []);
@@ -147,6 +167,23 @@ export default function CalendarPage() {
   const handleViewChange = useCallback((view: View) => {
     setCurrentView(view);
   }, []);
+
+  // Handle appointment dialog close
+  const handleAppointmentDialogClose = useCallback(() => {
+    setIsAppointmentDialogOpen(false);
+    setSelectedEvent(null);
+    // Refetch appointments to update the calendar
+    refetch();
+  }, [refetch]);
+
+  // Handle refresh
+  const handleRefresh = useCallback(() => {
+    refetch();
+    toast({
+      title: "Calendário atualizado",
+      description: "Os agendamentos foram atualizados com sucesso.",
+    });
+  }, [refetch, toast]);
 
   // Custom messages for Portuguese
   const messages = {
@@ -159,214 +196,167 @@ export default function CalendarPage() {
     day: 'Dia',
     agenda: 'Agenda',
     date: 'Data',
-    time: 'Hora',
+    time: 'Horário',
     event: 'Evento',
     noEventsInRange: 'Não há eventos neste período.',
     showMore: (total: number) => `+ ${total} mais`,
   };
 
-  if (aulasError) {
-    return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-red-500">Erro ao carregar calendário: {aulasError.message}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  if (appointmentsError) {
+    console.error("Error loading appointments:", appointmentsError);
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex flex-col gap-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Calendário de Aulas</h1>
-            <p className="text-muted-foreground">
-              Gerencie agendamentos e aulas recorrentes
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setIsNewRecurrenceFormOpen(true)}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Nova Recorrência
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/new-scheduling/classes"] })}
-              className="gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Atualizar
-            </Button>
-          </div>
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Calendário</h1>
+          <p className="text-gray-600 mt-1">Gerencie seus agendamentos e aulas</p>
         </div>
-
-        {/* Filters */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <label className="text-sm font-medium mb-2 block">Filtrar por Professor</label>
-                <Select value={filterProfessor} onValueChange={setFilterProfessor}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os professores" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os professores</SelectItem>
-                    {professors.map((professor) => (
-                      <SelectItem key={professor.id} value={professor.id.toString()}>
-                        {professor.name || professor.username}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex-1">
-                <label className="text-sm font-medium mb-2 block">Filtrar por Status</label>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os status</SelectItem>
-                    <SelectItem value="agendado">Agendado</SelectItem>
-                    <SelectItem value="em_andamento">Em Andamento</SelectItem>
-                    <SelectItem value="concluido">Concluído</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
-                    <SelectItem value="remarcado">Remarcado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Aulas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{aulas.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Agendadas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {aulas.filter((a: IAula) => a.status === 'agendado').length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Em Andamento</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">
-                {aulas.filter((a: IAula) => a.status === 'em_andamento').length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Concluídas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {aulas.filter((a: IAula) => a.status === 'concluido').length}
-              </div>
-            </CardContent>
-          </Card>
+        
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoadingAppointments}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Atualizar
+          </Button>
+          
+          <Button
+            onClick={() => setIsAppointmentDialogOpen(true)}
+            className="bg-pink-600 hover:bg-pink-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Agendamento
+          </Button>
         </div>
-
-        {/* Calendar */}
-        <Card>
-          <CardContent className="p-6">
-            {isLoadingAulas ? (
-              <div className="flex justify-center items-center h-96">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-            ) : (
-              <div style={{ height: '600px' }}>
-                <Calendar
-                  localizer={localizer}
-                  events={events}
-                  startAccessor="start"
-                  endAccessor="end"
-                  style={{ height: '100%' }}
-                  onSelectEvent={handleSelectEvent}
-                  onNavigate={handleNavigate}
-                  onView={handleViewChange}
-                  view={currentView}
-                  date={currentDate}
-                  eventPropGetter={eventStyleGetter}
-                  messages={messages}
-                  popup
-                  tooltipAccessor={(event) => {
-                    const aula = event.resource as IAula;
-                    return `${aula.title} - ${aula.status}`;
-                  }}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Legend */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Legenda</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                <span className="text-sm">Agendado</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-amber-500 rounded"></div>
-                <span className="text-sm">Em Andamento</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-green-500 rounded"></div>
-                <span className="text-sm">Concluído</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-red-500 rounded opacity-60"></div>
-                <span className="text-sm">Cancelado</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-purple-500 rounded"></div>
-                <span className="text-sm">Remarcado</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Multi-Date Appointment Dialog */}
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filtros
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Professor
+              </label>
+              <Select value={filterProfessor} onValueChange={setFilterProfessor}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os professores" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os professores</SelectItem>
+                  {professors.map((professor) => (
+                    <SelectItem key={professor.id} value={professor.id.toString()}>
+                      {professor.name || professor.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex-1">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Status
+              </label>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="agendado">Agendado</SelectItem>
+                  <SelectItem value="em_andamento">Em Andamento</SelectItem>
+                  <SelectItem value="concluido">Concluído</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                  <SelectItem value="remarcado">Remarcado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Legend */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-blue-500 rounded"></div>
+              <span className="text-sm">Agendado</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-amber-500 rounded"></div>
+              <span className="text-sm">Em Andamento</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-500 rounded"></div>
+              <span className="text-sm">Concluído</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-red-500 rounded"></div>
+              <span className="text-sm">Cancelado</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-purple-500 rounded"></div>
+              <span className="text-sm">Remarcado</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Calendar */}
+      <Card>
+        <CardContent className="p-6">
+          {isLoadingAppointments ? (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-600" />
+                <p className="text-gray-600">Carregando agendamentos...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="h-[600px]">
+              <Calendar
+                localizer={localizer}
+                events={events}
+                startAccessor="start"
+                endAccessor="end"
+                style={{ height: '100%' }}
+                onSelectEvent={handleSelectEvent}
+                onNavigate={handleNavigate}
+                onView={handleViewChange}
+                view={currentView}
+                date={currentDate}
+                eventPropGetter={eventStyleGetter}
+                messages={messages}
+                formats={{
+                  monthHeaderFormat: 'MMMM YYYY',
+                  dayHeaderFormat: 'dddd, DD/MM/YYYY',
+                  weekdayFormat: 'ddd',
+                }}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Appointment Dialog */}
       <MultiDateAppointmentDialog
-        isOpen={isAppointmentDialogOpen || isNewRecurrenceFormOpen}
-        onClose={() => {
-          setIsAppointmentDialogOpen(false);
-          setIsNewRecurrenceFormOpen(false);
-          setSelectedEvent(null);
-        }}
-        selectedDate={selectedEvent?.start ? new Date(selectedEvent.start) : new Date()}
-        onSuccess={() => {
-          // Refresh the calendar data
-          refetch();
-        }}
+        isOpen={isAppointmentDialogOpen}
+        onClose={handleAppointmentDialogClose}
+        appointment={selectedEvent}
+        professors={professors}
       />
     </div>
   );
