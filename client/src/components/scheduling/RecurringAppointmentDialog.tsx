@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, User, Clock, MapPin, DollarSign, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
 
 interface Lead {
   id: number;
@@ -97,34 +96,41 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
   const [newStudentEmail, setNewStudentEmail] = useState('');
   const [newStudentPhone, setNewStudentPhone] = useState('');
 
-  // Fetch data
+  // Fetch data only when dialog opens
   const { data: leads = [] } = useQuery<Lead[]>({
     queryKey: ['/api/leads'],
-    enabled: isOpen
+    enabled: isOpen,
+    staleTime: 5 * 60 * 1000 // 5 minutes
   });
 
   const { data: services = [] } = useQuery<Service[]>({
     queryKey: ['/api/services'],
-    enabled: isOpen
+    enabled: isOpen,
+    staleTime: 5 * 60 * 1000
   });
 
   const { data: professors = [] } = useQuery<Professor[]>({
     queryKey: ['/api/users/professors'],
-    enabled: isOpen
+    enabled: isOpen,
+    staleTime: 5 * 60 * 1000
   });
 
   // Create new student mutation
   const createStudentMutation = useMutation({
-    mutationFn: (studentData: { name: string; email?: string; phone?: string }) =>
-      apiRequest('/api/leads', {
+    mutationFn: async (studentData: { name: string; email?: string; phone?: string }) => {
+      const response = await fetch('/api/leads', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...studentData,
           status: 'ativo',
           source: 'agendamento_recorrente',
           entryDate: new Date().toISOString()
         })
-      }),
+      });
+      if (!response.ok) throw new Error('Failed to create student');
+      return response.json();
+    },
     onSuccess: (newStudent) => {
       queryClient.invalidateQueries({ queryKey: ['/api/leads'] });
       setSelectedStudentId(newStudent.id);
@@ -141,10 +147,15 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
 
   // Create recurring appointment mutation
   const createRecurringMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('/api/appointments/recurring', {
-      method: 'POST',
-      body: JSON.stringify(data)
-    }),
+    mutationFn: async (data: any) => {
+      const response = await fetch('/api/appointments/recurring', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to create recurring appointment');
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/appointments'] });
       toast({
@@ -288,6 +299,9 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
             <Plus className="h-5 w-5" />
             Agendar Serviço Recorrente
           </DialogTitle>
+          <DialogDescription>
+            Configure agendamentos recorrentes selecionando dias, horários e professores.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
