@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import MultiDateAppointmentDialog from "@/components/scheduling/MultiDateAppointmentDialog";
 import AppointmentDetailsDialog from "@/components/scheduling/AppointmentDetailsDialog";
+import RecurringAppointmentDialog from "@/components/scheduling/RecurringAppointmentDialog";
 import type { IAula, IProfessor } from "@/types";
 
 // Setup moment localizer for react-big-calendar
@@ -37,6 +38,7 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<IAula | null>(null);
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
   const [filterProfessor, setFilterProfessor] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   
@@ -193,6 +195,13 @@ export default function CalendarPage() {
     setIsAppointmentDialogOpen(true);
   }, []);
 
+  // Handle recurring dialog close
+  const handleRecurringDialogClose = useCallback(() => {
+    setIsRecurringDialogOpen(false);
+    // Refetch appointments to update the calendar
+    refetch();
+  }, [refetch]);
+
   // Handle refresh
   const handleRefresh = useCallback(() => {
     refetch();
@@ -249,6 +258,14 @@ export default function CalendarPage() {
           >
             <Plus className="h-4 w-4 mr-2" />
             Novo Agendamento
+          </Button>
+          
+          <Button
+            onClick={() => setIsRecurringDialogOpen(true)}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Agendar Serviço Recorrente
           </Button>
         </div>
       </div>
