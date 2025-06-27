@@ -139,3 +139,12 @@ Preferred communication style: Simple, everyday language.
 
 Changelog:
 - June 26, 2025. Initial setup
+- June 27, 2025. Implemented comprehensive teacher management and class scheduling system:
+  - Added professor role support to users table with extended fields (address, specialty, bio, hourlyRate)
+  - Created agendamentos_recorrentes table for recurring appointment management
+  - Created aulas table for individual class instances
+  - Built professor management interface with create/edit dialogs
+  - Implemented calendar view using react-big-calendar with Portuguese localization
+  - Added recurring appointment scheduling with weekly/daily/monthly patterns
+  - Created API endpoints for professor CRUD and class management
+  - Added sample professors and students for testing functionality

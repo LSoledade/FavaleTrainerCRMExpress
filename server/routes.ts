@@ -8,6 +8,7 @@ import {
   taskValidationSchema, taskCommentValidationSchema,
   type Session, type Student, type WhatsappMessage
 } from "@shared/schema";
+import * as schema from "@shared/schema";
 import { eq, desc, and, or, like, isNull, isNotNull, count, sql as drizzleSql, inArray, gte, lte } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { fromZodError } from "zod-validation-error";
