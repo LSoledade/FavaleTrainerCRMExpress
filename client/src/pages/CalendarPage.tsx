@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar, momentLocalizer, Event, View } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
-import { Plus, Filter, RefreshCw } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Filter, RefreshCw, Calendar as CalendarIcon, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ import {
 import MultiDateAppointmentDialog from "@/components/scheduling/MultiDateAppointmentDialog";
 import AppointmentDetailsDialog from "@/components/scheduling/AppointmentDetailsDialog";
 import { RecurringAppointmentDialog } from "@/components/scheduling/RecurringAppointmentDialog";
+import AppointmentsManagement from "@/components/scheduling/AppointmentsManagement";
 import type { IAula, IProfessor } from "@/types";
 
 // Setup moment localizer for react-big-calendar
@@ -41,7 +43,7 @@ export default function CalendarPage() {
   const [isRecurringDialogOpen, setIsRecurringDialogOpen] = useState(false);
   const [filterProfessor, setFilterProfessor] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -123,7 +125,7 @@ export default function CalendarPage() {
   const eventStyleGetter = useCallback((event: Event) => {
     const appointment = event.resource as IAula;
     let backgroundColor = '#3174ad'; // default blue
-    
+
     switch (appointment.status) {
       case 'agendado':
         backgroundColor = '#3b82f6'; // blue
@@ -228,6 +230,75 @@ export default function CalendarPage() {
     showMore: (total: number) => `+ ${total} mais`,
   };
 
+   // Custom messages for Portuguese
+  const messages = {
+    allDay: 'Todo o dia',
+    previous: 'Anterior',
+    next: 'Próximo',
+    today: 'Hoje',
+    month: 'Mês',
+    week: 'Semana',
+    day: 'Dia',
+    agenda: 'Agenda',
+    date: 'Data',
+    time: 'Hora',
+    event: 'Evento',
+    showMore: (total: number) => `+ Ver mais (${total})`,
+  };
+
+  const getEventColor = (source: 'Favale' | 'Pink' | 'FavalePink') => {
+    switch (source) {
+      case 'Favale':
+        return '#2563eb'; // Blue
+      case 'Pink':
+        return '#db2777'; // Pink
+      case 'FavalePink':
+        return '#7e22ce'; // Purple
+      default:
+        return '#6b7280'; // Gray
+    }
+  };
+
+  // Handle event selection
+  const handleSelectEvent = useCallback(
+    (event: any) => {
+      setSelectedEvent(event);
+      setIsDetailsDialogOpen(true);
+    },
+    [setSelectedEvent, setIsDetailsDialogOpen]
+  );
+
+  const handleSelectSlot = useCallback(
+    (slotInfo: any) => {
+      console.log('selected slot', slotInfo);
+    },
+    []
+  )
+
+  // Handle appointment dialog close
+  const handleAppointmentDialogClose = useCallback(() => {
+    setIsAppointmentDialogOpen(false);
+    setSelectedEvent(null);
+  }, []);
+
+  // Handle details dialog close
+  const handleDetailsDialogClose = useCallback(() => {
+    setIsDetailsDialogOpen(false);
+    setSelectedEvent(null);
+  }, []);
+
+  // Handle edit appointment
+  const handleEditAppointment = useCallback(() => {
+    setIsDetailsDialogOpen(false);
+    setIsAppointmentDialogOpen(true);
+  }, [setIsAppointmentDialogOpen, setIsDetailsDialogOpen]);
+
+  // Handle recurring dialog close
+  const handleRecurringDialogClose = useCallback(() => {
+    setIsRecurringDialogOpen(false);
+  }, [setIsRecurringDialogOpen]);
+
+
   if (appointmentsError) {
     console.error("Error loading appointments:", appointmentsError);
   }
@@ -240,7 +311,7 @@ export default function CalendarPage() {
           <h1 className="text-3xl font-bold text-gray-900">Calendário</h1>
           <p className="text-gray-600 mt-1">Gerencie seus agendamentos e aulas</p>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -251,7 +322,7 @@ export default function CalendarPage() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Atualizar
           </Button>
-          
+
           <Button
             onClick={() => setIsAppointmentDialogOpen(true)}
             className="bg-pink-600 hover:bg-pink-700"
@@ -259,7 +330,7 @@ export default function CalendarPage() {
             <Plus className="h-4 w-4 mr-2" />
             Novo Agendamento
           </Button>
-          
+
           <Button
             onClick={() => setIsRecurringDialogOpen(true)}
             className="bg-purple-600 hover:bg-purple-700"
@@ -298,7 +369,7 @@ export default function CalendarPage() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="flex-1">
               <label className="text-sm font-medium text-gray-700 mb-2 block">
                 Status
@@ -352,36 +423,55 @@ export default function CalendarPage() {
       {/* Calendar */}
       <Card>
         <CardContent className="p-6">
-          {isLoadingAppointments ? (
-            <div className="flex items-center justify-center h-96">
-              <div className="text-center">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-600" />
-                <p className="text-gray-600">Carregando agendamentos...</p>
-              </div>
-            </div>
-          ) : (
-            <div className="h-[600px]">
-              <Calendar
-                localizer={localizer}
-                events={events}
-                startAccessor="start"
-                endAccessor="end"
-                style={{ height: '100%' }}
-                onSelectEvent={handleSelectEvent}
-                onNavigate={handleNavigate}
-                onView={handleViewChange}
-                view={currentView}
-                date={currentDate}
-                eventPropGetter={eventStyleGetter}
-                messages={messages}
-                formats={{
-                  monthHeaderFormat: 'MMMM YYYY',
-                  dayHeaderFormat: 'dddd, DD/MM/YYYY',
-                  weekdayFormat: 'ddd',
-                }}
-              />
-            </div>
-          )}
+          <Tabs defaultValue="calendar" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="calendar" className="flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4" />
+                Calendário
+              </TabsTrigger>
+              <TabsTrigger value="appointments" className="flex items-center gap-2">
+                <List className="h-4 w-4" />
+                Agendamentos
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="calendar" className="mt-6">
+              {isLoadingAppointments ? (
+                <div className="flex items-center justify-center h-96">
+                  <div className="text-center">
+                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-600" />
+                    <p className="text-gray-600">Carregando agendamentos...</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-[600px]">
+                  <Calendar
+                    localizer={localizer}
+                    events={events}
+                    startAccessor="start"
+                    endAccessor="end"
+                    style={{ height: '100%' }}
+                    onSelectEvent={handleSelectEvent}
+                    onNavigate={handleNavigate}
+                    onView={handleViewChange}
+                    view={currentView}
+                    date={currentDate}
+                    eventPropGetter={eventStyleGetter}
+                    messages={messages}
+                    formats={{
+                      monthHeaderFormat: 'MMMM YYYY',
+                      dayHeaderFormat: 'dddd, DD/MM/YYYY',
+                      weekdayFormat: 'ddd',
+                    }}
+                  />
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="appointments" className="mt-6">
+              <AppointmentsManagement onRefresh={refetch} />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 

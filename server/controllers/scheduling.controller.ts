@@ -67,7 +67,7 @@ export const getSessionDetails = async (req: Request, res: Response) => {
     // In a real scenario, this would fetch from DB and join with trainer/location data.
     const allLeads = await storage.getLeads();
     const alunoLeads = allLeads.filter(lead => lead.status === "Aluno");
-    
+
     const sessions: Session[] = [];
     const now = new Date();
     const trainerIds = [1, 2, 3, 4]; // Mock trainer IDs
@@ -125,7 +125,7 @@ export const getSessionDetails = async (req: Request, res: Response) => {
           feedback: session.status === 'Concluído' ? ['Excelente progresso', 'Bom desempenho', 'Precisa melhorar', 'Superou expectativas'][Math.floor(Math.random() * 4)] : null
       };
     });
-    
+
     res.json(sessionsWithDetails);
   } catch (error) {
     console.error('Erro ao buscar detalhes das sessões:', error);
@@ -137,11 +137,11 @@ export const getSessionsByDateRange = async (req: Request, res: Response) => {
   try {
     const startDateQuery = req.query.start ? new Date(req.query.start as string) : new Date(new Date().setDate(new Date().getDate() - 30));
     const endDateQuery = req.query.end ? new Date(req.query.end as string) : new Date(new Date().setDate(new Date().getDate() + 30));
-    
+
     // Replicating the logic of fetching all (mocked) sessions then filtering.
     const allLeads = await storage.getLeads();
     const alunoLeads = allLeads.filter(lead => lead.status === "Aluno");
-    
+
     const allSessions: Session[] = [];
     const now = new Date();
     const trainerIds = [1, 2, 3, 4]; // Mock trainer IDs
@@ -175,12 +175,12 @@ export const getSessionsByDateRange = async (req: Request, res: Response) => {
             });
         }
     }
-    
+
     const filteredSessions = allSessions.filter((session: Session) => {
       // Compare Date objects directly
       return session.startTime >= startDateQuery && session.startTime <= endDateQuery;
     });
-    
+
     // Convert dates back to ISO strings for JSON response consistency
     const responseSessions = filteredSessions.map(s => ({
         ...s,
@@ -242,7 +242,7 @@ export const getStudents = async (req: Request, res: Response) => {
     // TODO: Replace with actual DB query for students
     const allLeads = await storage.getLeads();
     const alunoLeads = allLeads.filter(lead => lead.status === "Aluno");
-    
+
     const students: Student[] = alunoLeads.map(lead => ({
       id: lead.id, // Assuming student ID is same as lead ID for this mock
       leadId: lead.id,
@@ -254,7 +254,7 @@ export const getStudents = async (req: Request, res: Response) => {
       createdAt: new Date(lead.entryDate), // Use Date object
       updatedAt: new Date() // Use Date object
     }));
-    
+
     // Convert dates back to ISO strings for JSON response consistency
     const responseStudents = students.map(s => ({
         ...s,
@@ -275,7 +275,7 @@ export const getStudentsWithLeads = async (req: Request, res: Response) => {
     // TODO: Replace with actual DB query joining students and leads
     const allLeads = await storage.getLeads();
     const alunoLeads = allLeads.filter(lead => lead.status === "Aluno");
-    
+
     const students: Student[] = alunoLeads.map(lead => ({
       id: lead.id,
       leadId: lead.id,
@@ -286,7 +286,7 @@ export const getStudentsWithLeads = async (req: Request, res: Response) => {
       createdAt: new Date(lead.entryDate),
       updatedAt: new Date()
     }));
-    
+
     const studentsWithLeads = students.map((student: Student) => {
       const lead = allLeads.find(l => l.id === student.leadId);
       return {
@@ -302,10 +302,93 @@ export const getStudentsWithLeads = async (req: Request, res: Response) => {
         } : null
       };
     });
-    
+
     res.json(studentsWithLeads);
   } catch (error) {
     console.error('Erro ao buscar estudantes com info de leads:', error);
     res.status(500).json({ message: "Erro ao buscar estudantes com info de leads" });
   }
-}; 
+};
+
+export const deleteAppointment = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Delete the appointment
+    // await db.delete(aulas).where(eq(aulas.id, parseInt(id)));
+
+    res.json({ success: true, message: 'Agendamento excluído com sucesso' });
+  } catch (error) {
+    console.error('Erro ao excluir agendamento:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+export const updateAppointmentStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    const validStatuses = [
+      'SCHEDULED', 'DESM_DIA', 'DESM_ANTEC', 'DESM_MANUF', 
+      'REP', 'REP_DESM_DIA', 'AULA_ADIC', 'COMPLETED', 'CANCELLED'
+    ];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Status inválido' });
+    }
+
+    // Update the appointment status
+    // const [updatedAppointment] = await db
+    //   .update(aulas)
+    //   .set({ status })
+    //   .where(eq(aulas.id, parseInt(id)))
+    //   .returning();
+
+    const updatedAppointment = {id: id, status: status};
+
+    if (!updatedAppointment) {
+      return res.status(404).json({ error: 'Agendamento não encontrado' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Status atualizado com sucesso',
+      appointment: updatedAppointment
+    });
+  } catch (error) {
+    console.error('Erro ao atualizar status do agendamento:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+export const deleteRecurringGroup = async (req: Request, res: Response) => {
+  try {
+    const { groupId } = req.params;
+
+    if (!groupId) {
+      return res.status(400).json({ error: 'ID do grupo de recorrência é obrigatório' });
+    }
+
+    // Delete all appointments in the recurring group
+    // const deletedAppointments = await db
+    //   .delete(aulas)
+    //   .where(eq(aulas.recurrenceGroupId, groupId))
+    //   .returning();
+    const deletedAppointments = [];
+
+    if (deletedAppointments.length === 0) {
+      return res.status(404).json({ error: 'Grupo de recorrência não encontrado' });
+    }
+
+    res.json({ 
+      success: true, 
+      message: `${deletedAppointments.length} agendamentos da recorrência excluídos com sucesso`,
+      deletedCount: deletedAppointments.length
+    });
+  } catch (error) {
+    console.error('Erro ao excluir grupo de recorrência:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};

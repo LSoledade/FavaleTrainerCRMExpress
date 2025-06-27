@@ -1,29 +1,25 @@
-import { Router } from "express";
-import { isAuthenticated } from "../middlewares/auth.middleware";
+import { Router } from 'express';
 import { 
-  createRecurrentScheduling, 
-  getClasses, 
-  updateClass,
-  checkConflicts
-} from "../controllers/newScheduling.controller";
+  getAppointments, 
+  createAppointment, 
+  updateAppointment, 
+  deleteAppointment,
+  createRecurringAppointments,
+  updateAppointmentStatus,
+  deleteRecurringGroup
+} from '../controllers/scheduling.controller';
+import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-// Aplicar middleware de autenticação a todas as rotas
-router.use(isAuthenticated);
+router.use(authMiddleware);
 
-// ROTAS PARA O NOVO SISTEMA DE AGENDAMENTO
-
-// Criar agendamento recorrente
-router.post("/recurrent", createRecurrentScheduling);
-
-// Buscar aulas (com filtros)
-router.get("/classes", getClasses);
-
-// Atualizar aula específica
-router.patch("/classes/:id", updateClass);
-
-// Verificar conflitos de horário
-router.post("/check-conflicts", checkConflicts);
+router.get('/', getAppointments);
+router.post('/', createAppointment);
+router.put('/:id', updateAppointment);
+router.delete('/:id', deleteAppointment);
+router.patch('/:id/status', updateAppointmentStatus);
+router.post('/recurring', createRecurringAppointments);
+router.delete('/recurring/:groupId', deleteRecurringGroup);
 
 export default router;
