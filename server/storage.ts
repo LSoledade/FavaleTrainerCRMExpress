@@ -26,10 +26,19 @@ import { alias } from "drizzle-orm/pg-core";
 export interface IStorage {
   // User methods
   getUser(id: number): Promise<User | undefined>;
+  getUserById(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   deleteUser(id: number): Promise<boolean>;
+  
+  // Professor methods (users with role='professor')
+  getAllProfessors(): Promise<User[]>;
+  createProfessor(professor: InsertUser): Promise<User>;
+  updateProfessor(id: number, professor: Partial<InsertUser>): Promise<User | undefined>;
+  deleteProfessor(id: number): Promise<boolean>;
+  hasScheduledClasses(professorId: number): Promise<boolean>;
 
   // Lead methods
   getLeads(): Promise<Lead[]>;
@@ -129,6 +138,27 @@ export interface IStorage {
     expiry_date: number;
   } | null>;
   deleteGoogleTokens(userId: number): Promise<void>;
+
+  // New Scheduling System methods
+  // Agendamentos Recorrentes
+  createAgendamentoRecorrente(agendamento: any): Promise<any>;
+  getAgendamentosRecorrentes(): Promise<any[]>;
+  updateAgendamentoRecorrente(id: number, agendamento: any): Promise<any>;
+  deleteAgendamentoRecorrente(id: number): Promise<boolean>;
+
+  // Aulas (individual class instances)
+  getAulas(filters?: any): Promise<any[]>;
+  getAulaById(id: number): Promise<any | undefined>;
+  createAula(aula: any): Promise<any>;
+  createMultipleAulas(aulas: any[]): Promise<any[]>;
+  updateAula(id: number, aula: any): Promise<any>;
+  deleteAula(id: number): Promise<boolean>;
+  
+  // Lead helpers
+  getLeadById(id: number): Promise<Lead | undefined>;
+  
+  // Conflict checking
+  checkSchedulingConflicts(professorId: number, studentId: number, startTime: Date, endTime: Date, excludeAulaId?: number): Promise<any>;
 }
 
 const PostgresSessionStore = connectPg(session);
@@ -170,6 +200,75 @@ export class DatabaseStorage implements IStorage {
       return true;
     } catch (error) {
       console.error("Erro ao excluir usuário:", error);
+      return false;
+    }
+  }
+
+  // New professor and user helper methods
+  async getUserById(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user || undefined;
+  }
+
+  async getAllProfessors(): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.role, 'professor'));
+  }
+
+  async createProfessor(professor: InsertUser): Promise<User> {
+    const [createdProfessor] = await db
+      .insert(users)
+      .values({ ...professor, role: 'professor' })
+      .returning();
+    return createdProfessor;
+  }
+
+  async updateProfessor(id: number, professor: Partial<InsertUser>): Promise<User | undefined> {
+    try {
+      const [updatedProfessor] = await db
+        .update(users)
+        .set({ ...professor, updatedAt: new Date() })
+        .where(eq(users.id, id))
+        .returning();
+      return updatedProfessor || undefined;
+    } catch (error) {
+      console.error("Erro ao atualizar professor:", error);
+      return undefined;
+    }
+  }
+
+  async deleteProfessor(id: number): Promise<boolean> {
+    try {
+      await db.delete(users).where(eq(users.id, id));
+      return true;
+    } catch (error) {
+      console.error("Erro ao excluir professor:", error);
+      return false;
+    }
+  }
+
+  async hasScheduledClasses(professorId: number): Promise<boolean> {
+    try {
+      // Check if professor has any future classes
+      const now = new Date();
+      const result = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.trainerId, professorId),
+            sql`${sessions.startTime} > ${now}`,
+            sql`${sessions.status} != 'cancelado'`
+          )
+        );
+      
+      return (result[0]?.count || 0) > 0;
+    } catch (error) {
+      console.error("Erro ao verificar aulas agendadas:", error);
       return false;
     }
   }
