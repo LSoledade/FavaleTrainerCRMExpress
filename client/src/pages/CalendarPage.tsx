@@ -72,26 +72,10 @@ export default function CalendarPage() {
   }, [currentDate, currentView]);
 
   // Fetch classes/events
-  const { data: aulas = [], isLoading: isLoadingAulas, error: aulasError } = useQuery({
-    queryKey: ["/api/new-scheduling/classes", dateRange],
+  const { data: aulas = [], isLoading: isLoadingAulas, error: aulasError, refetch } = useQuery({
+    queryKey: ["/api/appointments", dateRange],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        start: dateRange.start.toISOString(),
-        end: dateRange.end.toISOString(),
-      });
-
-      if (filterProfessor !== "all") {
-        params.append("professorId", filterProfessor);
-      }
-
-      if (filterStatus !== "all") {
-        params.append("status", filterStatus);
-      }
-
-      const response = await fetch(`/api/new-scheduling/classes?${params}`);
-      if (!response.ok) {
-        throw new Error("Erro ao carregar aulas");
-      }
+      const response = await fetch("/api/appointments");
       return response.json();
     },
   });
@@ -370,19 +354,19 @@ export default function CalendarPage() {
         </Card>
       </div>
 
-      {/* Dialogs */}
-      <AppointmentDialog
-        aula={selectedEvent}
-        open={isAppointmentDialogOpen}
+      {/* Multi-Date Appointment Dialog */}
+      <MultiDateAppointmentDialog
+        isOpen={isAppointmentDialogOpen || isNewRecurrenceFormOpen}
         onClose={() => {
           setIsAppointmentDialogOpen(false);
+          setIsNewRecurrenceFormOpen(false);
           setSelectedEvent(null);
         }}
-      />
-
-      <NewRecurrenceForm
-        open={isNewRecurrenceFormOpen}
-        onClose={() => setIsNewRecurrenceFormOpen(false)}
+        selectedDate={selectedEvent?.start ? new Date(selectedEvent.start) : new Date()}
+        onSuccess={() => {
+          // Refresh the calendar data
+          refetch();
+        }}
       />
     </div>
   );
