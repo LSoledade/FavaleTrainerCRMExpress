@@ -12,7 +12,11 @@ import {
   type TaskComment, type InsertTaskComment,
   users,
   sessionHistory as sessionHistoryTable,
-  whatsappSettings, InsertWhatsappSettings, WhatsappSettings
+  whatsappSettings, InsertWhatsappSettings, WhatsappSettings,
+  // New scheduling system imports
+  agendamentosRecorrentes, aulas,
+  type AgendamentoRecorrente, type InsertAgendamentoRecorrente,
+  type Aula, type InsertAula
 } from "@shared/schema";
 import { db, pool } from "./db";
 import { eq, and, desc, asc, between, inArray, or, like, sql, SQL } from "drizzle-orm";
@@ -1056,6 +1060,178 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Erro ao remover tokens do Google:", error);
       throw error;
+    }
+  }
+
+  // NEW SCHEDULING SYSTEM METHODS
+
+  // Lead helper method
+  async getLeadById(id: number): Promise<Lead | undefined> {
+    const [lead] = await db.select().from(leads).where(eq(leads.id, id));
+    return lead || undefined;
+  }
+
+  // Agendamentos Recorrentes methods
+  async createAgendamentoRecorrente(agendamento: InsertAgendamentoRecorrente): Promise<AgendamentoRecorrente> {
+    const [created] = await db
+      .insert(agendamentosRecorrentes)
+      .values(agendamento)
+      .returning();
+    return created;
+  }
+
+  async getAgendamentosRecorrentes(): Promise<AgendamentoRecorrente[]> {
+    return await db.select().from(agendamentosRecorrentes);
+  }
+
+  async updateAgendamentoRecorrente(id: number, agendamento: Partial<InsertAgendamentoRecorrente>): Promise<AgendamentoRecorrente | undefined> {
+    try {
+      const [updated] = await db
+        .update(agendamentosRecorrentes)
+        .set({ ...agendamento, updatedAt: new Date() })
+        .where(eq(agendamentosRecorrentes.id, id))
+        .returning();
+      return updated || undefined;
+    } catch (error) {
+      console.error("Erro ao atualizar agendamento recorrente:", error);
+      return undefined;
+    }
+  }
+
+  async deleteAgendamentoRecorrente(id: number): Promise<boolean> {
+    try {
+      await db.delete(agendamentosRecorrentes).where(eq(agendamentosRecorrentes.id, id));
+      return true;
+    } catch (error) {
+      console.error("Erro ao excluir agendamento recorrente:", error);
+      return false;
+    }
+  }
+
+  // Aulas methods
+  async getAulas(filters?: any): Promise<Aula[]> {
+    let query = db.select().from(aulas);
+    
+    if (filters) {
+      const conditions = [];
+      
+      if (filters.startDate && filters.endDate) {
+        conditions.push(
+          and(
+            sql`${aulas.startTime} >= ${filters.startDate}`,
+            sql`${aulas.startTime} <= ${filters.endDate}`
+          )
+        );
+      }
+      
+      if (filters.professorId) {
+        conditions.push(eq(aulas.professorId, filters.professorId));
+      }
+      
+      if (filters.studentId) {
+        conditions.push(eq(aulas.studentId, filters.studentId));
+      }
+      
+      if (filters.status) {
+        conditions.push(eq(aulas.status, filters.status));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query.orderBy(asc(aulas.startTime));
+  }
+
+  async getAulaById(id: number): Promise<Aula | undefined> {
+    const [aula] = await db.select().from(aulas).where(eq(aulas.id, id));
+    return aula || undefined;
+  }
+
+  async createAula(aula: InsertAula): Promise<Aula> {
+    const [created] = await db
+      .insert(aulas)
+      .values(aula)
+      .returning();
+    return created;
+  }
+
+  async createMultipleAulas(aulasList: InsertAula[]): Promise<Aula[]> {
+    const created = await db
+      .insert(aulas)
+      .values(aulasList)
+      .returning();
+    return created;
+  }
+
+  async updateAula(id: number, aula: Partial<InsertAula>): Promise<Aula | undefined> {
+    try {
+      const [updated] = await db
+        .update(aulas)
+        .set({ ...aula, updatedAt: new Date() })
+        .where(eq(aulas.id, id))
+        .returning();
+      return updated || undefined;
+    } catch (error) {
+      console.error("Erro ao atualizar aula:", error);
+      return undefined;
+    }
+  }
+
+  async deleteAula(id: number): Promise<boolean> {
+    try {
+      await db.delete(aulas).where(eq(aulas.id, id));
+      return true;
+    } catch (error) {
+      console.error("Erro ao excluir aula:", error);
+      return false;
+    }
+  }
+
+  // Conflict checking
+  async checkSchedulingConflicts(
+    professorId: number, 
+    studentId: number, 
+    startTime: Date, 
+    endTime: Date, 
+    excludeAulaId?: number
+  ): Promise<any> {
+    try {
+      const conditions = [
+        and(
+          // Check for overlapping times
+          or(
+            and(
+              sql`${aulas.startTime} < ${endTime}`,
+              sql`${aulas.endTime} > ${startTime}`
+            )
+          ),
+          // Check for same professor OR same student
+          or(
+            eq(aulas.professorId, professorId),
+            eq(aulas.studentId, studentId)
+          ),
+          // Exclude cancelled classes
+          sql`${aulas.status} != 'cancelado'`
+        )
+      ];
+
+      // Exclude specific aula if provided (for updates)
+      if (excludeAulaId) {
+        conditions.push(sql`${aulas.id} != ${excludeAulaId}`);
+      }
+
+      const conflicts = await db
+        .select()
+        .from(aulas)
+        .where(and(...conditions))
+        .limit(1);
+
+      return conflicts.length > 0 ? conflicts[0] : null;
+    } catch (error) {
+      console.error("Erro ao verificar conflitos:", error);
+      return null;
     }
   }
 }

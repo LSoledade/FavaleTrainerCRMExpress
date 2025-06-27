@@ -1,16 +1,21 @@
-import { Router } from 'express';
-import { isAuthenticated, isAdmin } from '../middlewares/auth.middleware';
-import { getAllUsers, createUser, deleteUser } from '../controllers/user.controller';
+import { Router } from "express";
+import { isAuthenticated } from "../middlewares/auth.middleware";
+import { 
+  getAllProfessors, 
+  createProfessor, 
+  updateProfessor, 
+  deleteProfessor 
+} from "../controllers/user.controller";
 
 const router = Router();
 
-// Lista de usuários - permitido para qualquer usuário autenticado
-router.get('/', isAuthenticated, getAllUsers);
+// Aplicar middleware de autenticação a todas as rotas
+router.use(isAuthenticated);
 
-// Criar novo usuário (somente administradores)
-router.post('/', isAdmin, createUser);
+// ROTAS PARA GESTÃO DE PROFESSORES
+router.get("/professors", getAllProfessors);
+router.post("/professors", createProfessor);
+router.put("/professors/:id", updateProfessor);
+router.delete("/professors/:id", deleteProfessor);
 
-// Excluir usuário (somente administradores)
-router.delete('/:id', isAdmin, deleteUser);
-
-export default router; 
+export default router;

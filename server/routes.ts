@@ -35,6 +35,7 @@ import whatsappRouter from "./routes/whatsapp.routes"; // Import whatsapp router
 import auditLogRouter from "./routes/auditLog.routes"; // Import auditLog router
 import weatherRouter from "./routes/weather.routes"; // Import weather router
 import schedulingRouter from "./routes/scheduling.routes"; // Import scheduling router
+import newSchedulingRouter from "./routes/scheduling.routes"; // Import new scheduling router
 import statsRouter from "./routes/stats.routes"; // Import stats router
 import { isAuthenticated, isAdmin } from "./middlewares/auth.middleware"; // Import middlewares
 import { addUserNamesToTasks } from "./utils/task.utils"; // Import addUserNamesToTasks
@@ -52,7 +53,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/whatsapp", whatsappRouter); // Use whatsapp router
   app.use("/api/audit-logs", auditLogRouter); // Use auditLog router
   app.use("/api/weather", weatherRouter); // Use weather router
-  app.use("/api/scheduling", schedulingRouter); // Use scheduling router
+  app.use("/api/scheduling", schedulingRouter); // Use old scheduling router
+  app.use("/api/new-scheduling", newSchedulingRouter); // Use new scheduling router
   app.use("/api/stats", statsRouter); // Use stats router
   // Remover integração Google Calendar
   // app.use('/api/oauth', oauthRoutes);
