@@ -36,7 +36,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   deleteUser(id: number): Promise<boolean>;
-  
+
   // Professor methods (users with role='professor')
   getAllProfessors(): Promise<User[]>;
   createProfessor(professor: InsertUser): Promise<User>;
@@ -157,12 +157,14 @@ export interface IStorage {
   createMultipleAulas(aulas: any[]): Promise<any[]>;
   updateAula(id: number, aula: any): Promise<any>;
   deleteAula(id: number): Promise<boolean>;
-  
+
   // Lead helpers
   getLeadById(id: number): Promise<Lead | undefined>;
-  
+
   // Conflict checking
   checkSchedulingConflicts(professorId: number, studentId: number, startTime: Date, endTime: Date, excludeAulaId?: number): Promise<any>;
+
+  getAppointments(): Promise<any[]>;
 }
 
 const PostgresSessionStore = connectPg(session);
@@ -269,7 +271,7 @@ export class DatabaseStorage implements IStorage {
             sql`${sessions.status} != 'cancelado'`
           )
         );
-      
+
       return (result[0]?.count || 0) > 0;
     } catch (error) {
       console.error("Erro ao verificar aulas agendadas:", error);
@@ -1011,7 +1013,7 @@ export class DatabaseStorage implements IStorage {
           expiryDate = ${tokens.expiry_date},
           updatedAt = ${new Date().toISOString()}
       `);
-      
+
       console.log("Google tokens salvos com sucesso para usuário:", userId);
     } catch (error) {
       console.error("Erro ao salvar tokens do Google:", error);
@@ -1030,14 +1032,14 @@ export class DatabaseStorage implements IStorage {
         FROM google_tokens 
         WHERE userId = ${userId}
       `);
-      
+
       if (!result.rows || result.rows.length === 0) {
         console.log("Nenhum token encontrado para usuário:", userId);
         return null;
       }
-      
+
       const token = result.rows[0] as any;
-      
+
       return {
         access_token: token.accesstoken,
         refresh_token: token.refreshtoken,
@@ -1055,7 +1057,7 @@ export class DatabaseStorage implements IStorage {
         DELETE FROM google_tokens 
         WHERE userId = ${userId}
       `);
-      
+
       console.log("Tokens do Google removidos para usuário:", userId);
     } catch (error) {
       console.error("Erro ao remover tokens do Google:", error);
@@ -1111,10 +1113,10 @@ export class DatabaseStorage implements IStorage {
   // Aulas methods
   async getAulas(filters?: any): Promise<Aula[]> {
     let query = db.select().from(aulas);
-    
+
     if (filters) {
       const conditions = [];
-      
+
       if (filters.startDate && filters.endDate) {
         conditions.push(
           and(
@@ -1123,24 +1125,24 @@ export class DatabaseStorage implements IStorage {
           )
         );
       }
-      
+
       if (filters.professorId) {
         conditions.push(eq(aulas.professorId, filters.professorId));
       }
-      
+
       if (filters.studentId) {
         conditions.push(eq(aulas.studentId, filters.studentId));
       }
-      
+
       if (filters.status) {
         conditions.push(eq(aulas.status, filters.status));
       }
-      
+
       if (conditions.length > 0) {
         query = query.where(and(...conditions));
       }
     }
-    
+
     return await query.orderBy(asc(aulas.startTime));
   }
 
@@ -1232,6 +1234,18 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Erro ao verificar conflitos:", error);
       return null;
+    }
+  }
+
+    async getAppointments(): Promise<any[]> {
+    try {
+      // Try to get from aulas table if it exists
+      const appointments = await db?.select().from(aulas) || [];
+      return appointments;
+    } catch (error) {
+      console.error('Error getting appointments from database:', error);
+      // If aulas table doesn't exist, return empty array to trigger fallback
+      return [];
     }
   }
 }

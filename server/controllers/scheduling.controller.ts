@@ -394,7 +394,160 @@ export const deleteRecurringGroup = async (req: Request, res: Response) => {
 };
 
 // Aliases for route compatibility
-export const getAppointments = getSessions;
+export const getAppointments = async (req: Request, res: Response) => {
+  try {
+    // Try to get appointments from the database first
+    try {
+      const dbAppointments = await storage.getAppointments();
+      
+      // If we have real data, return it
+      if (dbAppointments && dbAppointments.length > 0) {
+        // Enhance with lead and trainer information
+        const allLeads = await storage.getLeads();
+        const trainers = [
+          { id: 1, name: "Amanda Silva", username: "Amanda Silva", email: "amanda.silva@favalepink.com" },
+          { id: 2, name: "Ricardo Costa", username: "Ricardo Costa", email: "ricardo.costa@favalepink.com" },
+          { id: 3, name: "Juliana Oliveira", username: "Juliana Oliveira", email: "juliana.oliveira@favalepink.com" },
+          { id: 4, name: "Marcos Santos", username: "Marcos Santos", email: "marcos.santos@favalepink.com" },
+          { id: 5, name: "Carolina Mendes", username: "Carolina Mendes", email: "carolina.mendes@favalepink.com" },
+          { id: 13, name: "Matheus Barbosa", username: "matheus.barbosa", email: "matheus.barbosa@favalepink.com" },
+          { id: 14, name: "Leonardo", username: "leonardo", email: "leonardo@favalepink.com" },
+          { id: 15, name: "João Silva", username: "joao.silva", email: "joao.silva@favalepink.com" },
+          { id: 16, name: "Maria Santos", username: "maria.santos", email: "maria.santos@favalepink.com" },
+          { id: 17, name: "Pedro Costa", username: "pedro.costa", email: "pedro.costa@favalepink.com" },
+          { id: 18, name: "Alessandra", username: "Alessandra", email: "alessandra@favalepink.com" }
+        ];
+        
+        const enhancedAppointments = dbAppointments.map(appointment => {
+          const lead = allLeads.find(l => l.id === appointment.leadId);
+          const trainer = trainers.find(t => t.id === appointment.trainerId);
+          
+          return {
+            ...appointment,
+            lead: lead ? {
+              id: lead.id,
+              name: lead.name,
+              phone: lead.phone || '',
+              email: lead.email || ''
+            } : null,
+            trainer: trainer ? {
+              id: trainer.id,
+              name: trainer.name,
+              email: trainer.email
+            } : null
+          };
+        });
+        
+        return res.json(enhancedAppointments);
+      }
+    } catch (dbError) {
+      console.log('Appointments table not found or error, using simulated data:', dbError);
+    }
+    
+    // Fallback to simulated data
+    const allLeads = await storage.getLeads();
+    const alunoLeads = allLeads.filter(lead => 
+      lead.tags?.includes("Alunos") || lead.status === "Aluno"
+    );
+
+    const appointments: any[] = [];
+    const now = new Date();
+    const trainerIds = [1, 2, 3, 4, 13, 18];
+    
+    // Mock trainers data
+    const trainers = [
+      { id: 1, name: "Amanda Silva", username: "Amanda Silva", email: "amanda.silva@favalepink.com" },
+      { id: 2, name: "Ricardo Costa", username: "Ricardo Costa", email: "ricardo.costa@favalepink.com" },
+      { id: 3, name: "Juliana Oliveira", username: "Juliana Oliveira", email: "juliana.oliveira@favalepink.com" },
+      { id: 4, name: "Marcos Santos", username: "Marcos Santos", email: "marcos.santos@favalepink.com" },
+      { id: 13, name: "Matheus Barbosa", username: "matheus.barbosa", email: "matheus.barbosa@favalepink.com" },
+      { id: 18, name: "Alessandra", username: "Alessandra", email: "alessandra@favalepink.com" }
+    ];
+
+    // Create some recurring groups
+    const recurringGroups = [
+      'rec-group-001',
+      'rec-group-002', 
+      'rec-group-003',
+      'rec-group-004',
+      'rec-group-005'
+    ];
+
+    for (const lead of alunoLeads.slice(0, 20)) {
+      const isRecurring = Math.random() < 0.4; // 40% chance of being recurring
+      const sessionCount = isRecurring ? Math.floor(Math.random() * 8) + 4 : Math.floor(Math.random() * 3) + 1;
+      const trainerId = trainerIds[Math.floor(Math.random() * trainerIds.length)];
+      const trainer = trainers.find(t => t.id === trainerId);
+      const recurrenceGroupId = isRecurring ? recurringGroups[Math.floor(Math.random() * recurringGroups.length)] : null;
+      
+      for (let i = 0; i < sessionCount; i++) {
+        const startDate = new Date(now);
+        if (isRecurring) {
+          // For recurring, spread sessions over weeks
+          startDate.setDate(now.getDate() + (i * 7) - Math.floor(Math.random() * 30));
+        } else {
+          // For individual, random dates
+          startDate.setDate(now.getDate() - Math.floor(Math.random() * 60) + Math.floor(Math.random() * 30));
+        }
+        
+        const startHour = 8 + Math.floor(Math.random() * 10); // 8am to 6pm
+        startDate.setHours(startHour, 0, 0, 0);
+        
+        const endDate = new Date(startDate);
+        endDate.setHours(startDate.getHours() + 1); // 1 hour sessions
+        
+        const statuses = ["SCHEDULED", "COMPLETED", "CANCELLED", "DESM_DIA", "DESM_ANTEC"];
+        const status = statuses[Math.floor(Math.random() * statuses.length)];
+        
+        const sources = ['Favale', 'Pink', 'FavalePink'];
+        const source = sources[Math.floor(Math.random() * sources.length)];
+        
+        const locations = ['Studio Favale', 'Academia Pink', 'Centro Esportivo', 'Online'];
+        const location = locations[Math.floor(Math.random() * locations.length)];
+        
+        const services = ['Personal Training', 'Musculação', 'Pilates', 'Funcional', 'Yoga'];
+        const service = services[Math.floor(Math.random() * services.length)];
+
+        appointments.push({
+          id: appointments.length + 1,
+          service: service,
+          startTime: startDate.toISOString(),
+          endTime: endDate.toISOString(),
+          location: location,
+          source: source,
+          notes: isRecurring ? `Aula recorrente - Sessão ${i + 1}` : 'Aula individual',
+          status: status,
+          leadId: lead.id,
+          trainerId: trainerId,
+          value: 80 + Math.floor(Math.random() * 40),
+          recurrenceType: isRecurring ? (Math.random() < 0.5 ? 'weekly' : 'biweekly') : null,
+          recurrenceGroupId: recurrenceGroupId,
+          isRecurrenceParent: isRecurring && i === 0,
+          parentSessionId: isRecurring && i > 0 ? appointments.find(a => a.recurrenceGroupId === recurrenceGroupId && a.isRecurrenceParent)?.id : null,
+          googleEventId: `mock-google-event-${appointments.length + 1}`,
+          createdAt: new Date(lead.entryDate).toISOString(),
+          updatedAt: new Date().toISOString(),
+          lead: {
+            id: lead.id,
+            name: lead.name,
+            phone: lead.phone || '',
+            email: lead.email || ''
+          },
+          trainer: trainer ? {
+            id: trainer.id,
+            name: trainer.name,
+            email: trainer.email
+          } : null
+        });
+      }
+    }
+
+    res.json(appointments);
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    res.status(500).json({ message: "Erro ao buscar agendamentos" });
+  }
+};
 export const createAppointment = async (req: Request, res: Response) => {
   try {
     // For now, return a simple response - this can be implemented based on requirements

@@ -95,31 +95,32 @@ export default function CalendarPage() {
   });
 
   // Transform appointments for react-big-calendar
-  const events: Event[] = useMemo(() => {
-    let filteredAppointments = appointments;
+  const events = useMemo(() => {
+    if (!appointments) return [];
 
-    // Apply professor filter
-    if (filterProfessor !== "all") {
-      filteredAppointments = filteredAppointments.filter(
-        (appointment: IAula) => appointment.professorId === parseInt(filterProfessor)
-      );
-    }
+    return appointments.map((appointment: IAula) => {
+      const studentName = appointment.lead?.name || leads.find(l => l.id === appointment.leadId)?.name || 'Aluno';
+      const trainerName = appointment.trainer?.name || professors.find(p => p.id === appointment.trainerId)?.username || 'Professor';
 
-    // Apply status filter
-    if (filterStatus !== "all") {
-      filteredAppointments = filteredAppointments.filter(
-        (appointment: IAula) => appointment.status === filterStatus
-      );
-    }
+      // Add visual indicator for recurring appointments
+      const title = appointment.recurrenceGroupId && appointment.recurrenceGroupId !== 'none' 
+        ? `🔄 ${appointment.service} - ${studentName}` 
+        : `${appointment.service} - ${studentName}`;
 
-    return filteredAppointments.map((appointment: IAula) => ({
-      id: appointment.id,
-      title: appointment.title || appointment.service || "Aula",
-      start: new Date(appointment.startTime),
-      end: new Date(appointment.endTime),
-      resource: appointment,
-    }));
-  }, [appointments, filterProfessor, filterStatus]);
+      return {
+        id: appointment.id.toString(),
+        title,
+        start: new Date(appointment.startTime),
+        end: new Date(appointment.endTime),
+        resource: {
+          ...appointment,
+          studentName,
+          trainerName,
+          isRecurring: !!(appointment.recurrenceGroupId && appointment.recurrenceGroupId !== 'none')
+        }
+      };
+    });
+  }, [appointments, leads, professors]);
 
   // Event style getter for color coding
   const eventStyleGetter = useCallback((event: Event) => {
