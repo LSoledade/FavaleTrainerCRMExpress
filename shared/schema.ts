@@ -89,26 +89,7 @@ export const students = pgTable('students', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export const aulas = pgTable('aulas', {
-  id: serial('id').primaryKey(),
-  service: text('service').notNull(),
-  startTime: timestamp('start_time').notNull(),
-  endTime: timestamp('end_time').notNull(),
-  location: text('location').notNull(),
-  source: text('source').notNull(),
-  notes: text('notes'),
-  status: text('status').notNull().default('SCHEDULED'),
-  leadId: integer('lead_id').references(() => leads.id).notNull(),
-  trainerId: integer('trainer_id').references(() => users.id).notNull(),
-  value: integer('value'),
-  recurrenceType: text('recurrence_type'),
-  recurrenceGroupId: text('recurrence_group_id'),
-  isRecurrenceParent: boolean('is_recurrence_parent').default(false),
-  parentSessionId: integer('parent_session_id'),
-  googleEventId: text('google_event_id'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow(),
-});
+
 
 export const insertStudentSchema = createInsertSchema(students).omit({
   id: true,
@@ -126,7 +107,6 @@ export const studentValidationSchema = insertStudentSchema.extend({
 
 export type InsertStudent = z.infer<typeof insertStudentSchema>;
 export type Student = typeof students.$inferSelect;
-export type IAula = typeof aulas.$inferSelect;
 
 // Lead schema
 export const leads = pgTable("leads", {
@@ -586,6 +566,7 @@ export const aulaValidationSchema = insertAulaSchema.extend({
 
 export type InsertAula = z.infer<typeof insertAulaSchema>;
 export type Aula = typeof aulas.$inferSelect;
+export type IAula = typeof aulas.$inferSelect;
 
 // Tabela de serviços
 export const services = pgTable("services", {
