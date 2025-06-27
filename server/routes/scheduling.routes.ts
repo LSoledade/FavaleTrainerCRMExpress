@@ -8,11 +8,11 @@ import {
   updateAppointmentStatus,
   deleteRecurringGroup
 } from '../controllers/scheduling.controller';
-import { authMiddleware } from '../middlewares/auth.middleware';
+import { isAuthenticated } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-router.use(authMiddleware);
+router.use(isAuthenticated);
 
 router.get('/', getAppointments);
 router.post('/', createAppointment);

@@ -230,21 +230,7 @@ export default function CalendarPage() {
     showMore: (total: number) => `+ ${total} mais`,
   };
 
-   // Custom messages for Portuguese
-  const messages = {
-    allDay: 'Todo o dia',
-    previous: 'Anterior',
-    next: 'Próximo',
-    today: 'Hoje',
-    month: 'Mês',
-    week: 'Semana',
-    day: 'Dia',
-    agenda: 'Agenda',
-    date: 'Data',
-    time: 'Hora',
-    event: 'Evento',
-    showMore: (total: number) => `+ Ver mais (${total})`,
-  };
+
 
   const getEventColor = (source: 'Favale' | 'Pink' | 'FavalePink') => {
     switch (source) {
@@ -259,44 +245,12 @@ export default function CalendarPage() {
     }
   };
 
-  // Handle event selection
-  const handleSelectEvent = useCallback(
-    (event: any) => {
-      setSelectedEvent(event);
-      setIsDetailsDialogOpen(true);
-    },
-    [setSelectedEvent, setIsDetailsDialogOpen]
-  );
-
   const handleSelectSlot = useCallback(
     (slotInfo: any) => {
       console.log('selected slot', slotInfo);
     },
     []
-  )
-
-  // Handle appointment dialog close
-  const handleAppointmentDialogClose = useCallback(() => {
-    setIsAppointmentDialogOpen(false);
-    setSelectedEvent(null);
-  }, []);
-
-  // Handle details dialog close
-  const handleDetailsDialogClose = useCallback(() => {
-    setIsDetailsDialogOpen(false);
-    setSelectedEvent(null);
-  }, []);
-
-  // Handle edit appointment
-  const handleEditAppointment = useCallback(() => {
-    setIsDetailsDialogOpen(false);
-    setIsAppointmentDialogOpen(true);
-  }, [setIsAppointmentDialogOpen, setIsDetailsDialogOpen]);
-
-  // Handle recurring dialog close
-  const handleRecurringDialogClose = useCallback(() => {
-    setIsRecurringDialogOpen(false);
-  }, [setIsRecurringDialogOpen]);
+  );
 
 
   if (appointmentsError) {

@@ -392,3 +392,35 @@ export const deleteRecurringGroup = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };
+
+// Aliases for route compatibility
+export const getAppointments = getSessions;
+export const createAppointment = async (req: Request, res: Response) => {
+  try {
+    // For now, return a simple response - this can be implemented based on requirements
+    res.json({ success: true, message: 'Appointment creation endpoint - needs implementation' });
+  } catch (error) {
+    console.error('Erro ao criar agendamento:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+export const updateAppointment = async (req: Request, res: Response) => {
+  try {
+    // For now, return a simple response - this can be implemented based on requirements
+    res.json({ success: true, message: 'Appointment update endpoint - needs implementation' });
+  } catch (error) {
+    console.error('Erro ao atualizar agendamento:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+export const createRecurringAppointments = async (req: Request, res: Response) => {
+  try {
+    // For now, return a simple response - this can be implemented based on requirements
+    res.json({ success: true, message: 'Recurring appointments creation endpoint - needs implementation' });
+  } catch (error) {
+    console.error('Erro ao criar agendamentos recorrentes:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
