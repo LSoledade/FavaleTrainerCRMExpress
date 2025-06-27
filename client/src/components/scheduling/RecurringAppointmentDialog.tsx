@@ -16,6 +16,7 @@ interface Lead {
   name: string;
   email?: string;
   phone?: string;
+  status?: string;
 }
 
 interface Service {
@@ -78,7 +79,7 @@ const formatHour = (hour: number): string => {
 export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppointmentDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   // Form state
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
@@ -99,12 +100,15 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
   const [newStudentEmail, setNewStudentEmail] = useState('');
   const [newStudentPhone, setNewStudentPhone] = useState('');
 
-  // Fetch data only when dialog opens
-  const { data: leads = [] } = useQuery<Lead[]>({
-    queryKey: ['/api/leads'],
+  // Buscar dados necessários
+  const { data: allLeads = [] } = useQuery<Lead[]>({
+    queryKey: ["/api/leads"],
     enabled: isOpen,
     staleTime: 5 * 60 * 1000 // 5 minutes
   });
+
+  // Filtrar apenas alunos
+  const leads = allLeads.filter(lead => lead.status === "Aluno");
 
   const { data: services = [] } = useQuery<Service[]>({
     queryKey: ['/api/services'],
@@ -240,7 +244,7 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
       day.timeSlots.some(slot => slot.selected) &&
       day.selectedProfessors.length > 0
     );
-    
+
     if (selectedDays.length === 0) {
       toast({
         title: "Selecione agendamentos",
@@ -456,7 +460,7 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
           {/* Weekly Schedule */}
           <div className="space-y-4">
             <Label className="text-lg font-semibold">Programação Semanal</Label>
-            
+
             {WEEKDAYS.map((weekday, dayIndex) => {
               const daySchedule = weeklySchedule[dayIndex];
               // Memoizar para evitar re-cálculos a cada render
@@ -464,7 +468,7 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
                 daySchedule.timeSlots.filter(slot => slot.selected),
                 [daySchedule.timeSlots]
               );
-              
+
               return (
                 <Card key={weekday.value} className={daySchedule.selected ? 'border-pink-500' : ''}>
                   <CardHeader className="pb-3">
@@ -481,7 +485,7 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
                       )}
                     </div>
                   </CardHeader>
-                  
+
                   {daySchedule.selected && (
                     <CardContent className="space-y-4">
                       {/* Time Slots Grid */}
@@ -490,7 +494,7 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
                           <Clock className="h-4 w-4" />
                           Horários (1 hora cada)
                         </Label>
-                        
+
                         <div className="grid grid-cols-6 gap-2">
                           {daySchedule.timeSlots.map((slot, slotIndex) => (
                             <Button

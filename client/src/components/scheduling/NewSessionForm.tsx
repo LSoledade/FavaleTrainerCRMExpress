@@ -446,7 +446,7 @@ export function NewSessionForm({ leads, trainers, onSubmit, onCancel, isLoading 
                   {watchRecurrenceType === 'custom' && (
                     <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                       <h4 className="font-medium text-blue-900 dark:text-blue-100">Recorrência personalizada</h4>
-                      
+
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-600 dark:text-gray-300">Repetir a cada:</span>
                         <FormField
@@ -491,7 +491,7 @@ export function NewSessionForm({ leads, trainers, onSubmit, onCancel, isLoading 
                                   const dayValues = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
                                   const dayValue = dayValues[index];
                                   const isSelected = field.value?.includes(dayValue as any) || false;
-                                  
+
                                   return (
                                     <button
                                       key={index}
@@ -541,7 +541,7 @@ export function NewSessionForm({ leads, trainers, onSubmit, onCancel, isLoading 
                                   />
                                   <Label htmlFor="never" className="text-sm">Nunca</Label>
                                 </div>
-                                
+
                                 <div className="flex items-center space-x-2">
                                   <input
                                     type="radio"
@@ -571,7 +571,7 @@ export function NewSessionForm({ leads, trainers, onSubmit, onCancel, isLoading 
                                     />
                                   )}
                                 </div>
-                                
+
                                 <div className="flex items-center space-x-2">
                                   <input
                                     type="radio"
