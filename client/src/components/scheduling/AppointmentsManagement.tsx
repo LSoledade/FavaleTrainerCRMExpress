@@ -92,9 +92,9 @@ const STATUS_LABELS = {
 };
 
 const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
-  const [filterProfessor, setFilterProfessor] = useState<string>("");
-  const [filterStudent, setFilterStudent] = useState<string>("");
-  const [filterStatus, setFilterStatus] = useState<string>("");
+  const [filterProfessor, setFilterProfessor] = useState<string>("all");
+  const [filterStudent, setFilterStudent] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [viewMode, setViewMode] = useState<"individual" | "grouped">("grouped");
 
@@ -359,7 +359,7 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
                   <SelectValue placeholder="Todos os professores" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os professores</SelectItem>
+                  <SelectItem value="all">Todos os professores</SelectItem>
                   {professors.map((professor) => (
                     <SelectItem key={professor.id} value={professor.id.toString()}>
                       {professor.username}
