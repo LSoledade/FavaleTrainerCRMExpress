@@ -1,18 +1,40 @@
-import { pgTable, text, serial, integer, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, jsonb, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Definindo o enum para roles de usuários
+export const userRoleEnum = pgEnum('user_role', ['admin', 'professor']);
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  role: text("role").default("user").notNull(),
+  role: userRoleEnum("role").default("professor").notNull(),
+  // Campos adicionais para professores
+  name: text("name"),
+  email: text("email"),
+  phone: text("phone"),
+  specialties: text("specialties").array(),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  role: true,
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const professorValidationSchema = insertUserSchema.extend({
+  username: z.string().min(1, "O nome de usuário é obrigatório"),
+  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres"),
+  name: z.string().min(1, "O nome é obrigatório"),
+  email: z.string().min(1, "O e-mail é obrigatório").email("E-mail inválido"),
+  phone: z.string().optional(),
+  specialties: z.array(z.string()).optional(),
+  role: z.enum(["admin", "professor"]).default("professor"),
+  active: z.boolean().default(true),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -393,3 +415,159 @@ export const insertWhatsappSettingsSchema = createInsertSchema(whatsappSettings)
 
 export type InsertWhatsappSettings = z.infer<typeof insertWhatsappSettingsSchema>;
 export type WhatsappSettings = typeof whatsappSettings.$inferSelect;
+
+// Enums para o novo sistema de agendamento
+export const clasStatusEnum = pgEnum('class_status', ['agendado', 'em_andamento', 'concluido', 'cancelado', 'remarcado']);
+export const recurrenceTypeEnum = pgEnum('recurrence_type', ['none', 'daily', 'weekly', 'monthly', 'yearly', 'custom']);
+export const recurrenceEndTypeEnum = pgEnum('recurrence_end_type', ['never', 'date', 'count']);
+
+// Tabela de Agendamentos Recorrentes
+export const agendamentosRecorrentes = pgTable("agendamentos_recorrentes", {
+  id: serial("id").primaryKey(),
+  professorId: integer("professor_id").references(() => users.id).notNull(),
+  studentId: integer("student_id").references(() => leads.id).notNull(), // Referência ao lead/aluno
+  location: text("location").notNull(),
+  value: integer("value").notNull(), // Valor em centavos
+  service: text("service").notNull(),
+  notes: text("notes"),
+  // Configurações de recorrência
+  regras: jsonb("regras").notNull(), // JSON com as regras de recorrência
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"), // Data limite opcional
+  maxOccurrences: integer("max_occurrences"), // Número máximo de ocorrências
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertAgendamentoRecorrenteSchema = createInsertSchema(agendamentosRecorrentes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const agendamentoRecorrenteValidationSchema = insertAgendamentoRecorrenteSchema.extend({
+  professorId: z.number().int().positive("ID do professor inválido"),
+  studentId: z.number().int().positive("ID do aluno inválido"),
+  location: z.string().min(1, "O local é obrigatório"),
+  value: z.number().int().positive("O valor deve ser maior que zero"),
+  service: z.string().min(1, "O serviço é obrigatório"),
+  notes: z.string().optional(),
+  regras: z.record(z.any()), // JSON com regras de recorrência
+  startDate: z.preprocess((arg) => {
+    if (typeof arg === "string" || arg instanceof Date) return arg;
+    return undefined;
+  }, z.union([
+    z.string().transform(val => new Date(val)),
+    z.date()
+  ])).refine(date => date instanceof Date && !isNaN(date.getTime()), {
+    message: "Data de início precisa ser uma data válida"
+  }),
+  endDate: z.preprocess((arg) => {
+    if (typeof arg === "string" || arg instanceof Date) return arg;
+    return undefined;
+  }, z.union([
+    z.string().transform(val => new Date(val)),
+    z.date()
+  ])).optional(),
+  maxOccurrences: z.number().int().positive("Número máximo de ocorrências deve ser positivo").optional(),
+  active: z.boolean().default(true),
+});
+
+export type InsertAgendamentoRecorrente = z.infer<typeof insertAgendamentoRecorrenteSchema>;
+export type AgendamentoRecorrente = typeof agendamentosRecorrentes.$inferSelect;
+
+// Tabela de Aulas (instâncias individuais)
+export const aulas = pgTable("aulas", {
+  id: serial("id").primaryKey(),
+  agendamentoRecorrenteId: integer("agendamento_recorrente_id").references(() => agendamentosRecorrentes.id),
+  professorId: integer("professor_id").references(() => users.id).notNull(),
+  studentId: integer("student_id").references(() => leads.id).notNull(),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  location: text("location").notNull(),
+  value: integer("value").notNull(),
+  service: text("service").notNull(),
+  notes: text("notes"),
+  status: clasStatusEnum("status").default("agendado").notNull(),
+  // Campo para gerenciar alterações específicas de uma instância
+  isModified: boolean("is_modified").default(false), // Se foi modificada em relação ao agendamento original
+  originalStartTime: timestamp("original_start_time"), // Horário original antes de modificações
+  originalEndTime: timestamp("original_end_time"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertAulaSchema = createInsertSchema(aulas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const aulaValidationSchema = insertAulaSchema.extend({
+  professorId: z.number().int().positive("ID do professor inválido"),
+  studentId: z.number().int().positive("ID do aluno inválido"),
+  startTime: z.preprocess((arg) => {
+    if (typeof arg === "string" || arg instanceof Date) return arg;
+    return undefined;
+  }, z.union([
+    z.string().transform(val => new Date(val)),
+    z.date()
+  ])).refine(date => date instanceof Date && !isNaN(date.getTime()), {
+    message: "Horário de início precisa ser uma data válida"
+  }),
+  endTime: z.preprocess((arg) => {
+    if (typeof arg === "string" || arg instanceof Date) return arg;
+    return undefined;
+  }, z.union([
+    z.string().transform(val => new Date(val)),
+    z.date()
+  ])).refine(date => date instanceof Date && !isNaN(date.getTime()), {
+    message: "Horário de término precisa ser uma data válida"
+  }),
+  location: z.string().min(1, "O local é obrigatório"),
+  value: z.number().int().positive("O valor deve ser maior que zero"),
+  service: z.string().min(1, "O serviço é obrigatório"),
+  notes: z.string().optional(),
+  status: z.enum(["agendado", "em_andamento", "concluido", "cancelado", "remarcado"]).default("agendado"),
+  agendamentoRecorrenteId: z.number().int().positive("ID do agendamento recorrente inválido").optional(),
+  isModified: z.boolean().default(false),
+  originalStartTime: z.preprocess((arg) => {
+    if (typeof arg === "string" || arg instanceof Date) return arg;
+    return undefined;
+  }, z.union([
+    z.string().transform(val => new Date(val)),
+    z.date()
+  ])).optional(),
+  originalEndTime: z.preprocess((arg) => {
+    if (typeof arg === "string" || arg instanceof Date) return arg;
+    return undefined;
+  }, z.union([
+    z.string().transform(val => new Date(val)),
+    z.date()
+  ])).optional(),
+}).refine(
+  data => {
+    const startTime = data.startTime instanceof Date ? data.startTime : new Date(data.startTime as string);
+    const endTime = data.endTime instanceof Date ? data.endTime : new Date(data.endTime as string);
+    return endTime > startTime;
+  },
+  {
+    message: "O horário de término deve ser posterior ao horário de início",
+    path: ["endTime"],
+  }
+);
+
+export type InsertAula = z.infer<typeof insertAulaSchema>;
+export type Aula = typeof aulas.$inferSelect;
+
+// Interface para as regras de recorrência (JSON)
+export interface IRegraRecorrencia {
+  type: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+  interval: number; // A cada X dias/semanas/meses
+  weekDays?: string[]; // ['monday', 'wednesday', 'friday'] para recorrência semanal
+  monthDay?: number; // Dia do mês (1-31) para recorrência mensal
+  endType: 'never' | 'date' | 'count';
+  endDate?: Date;
+  endCount?: number;
+}
