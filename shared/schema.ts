@@ -78,18 +78,16 @@ export type InsertTrainer = z.infer<typeof insertTrainerSchema>;
 export type Trainer = typeof trainers.$inferSelect;
 
 // Tabela de alunos (expandindo leads com status "Aluno")
-export const students = pgTable('students', {
-  id: serial('id').primaryKey(),
-  leadId: integer('lead_id').references(() => leads.id).notNull(),
-  address: text('address'),
-  preferences: text('preferences'),
-  source: text('source').notNull(), // "Favale" ou "Pink"
-  active: boolean('active').default(true).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+export const students = pgTable("students", {
+  id: serial("id").primaryKey(),
+  leadId: integer("lead_id").references(() => leads.id), // Referência ao lead correspondente
+  address: text("address"),
+  preferences: text("preferences"),
+  source: text("source").notNull(), // "Favale" ou "Pink"
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
-
-
 
 export const insertStudentSchema = createInsertSchema(students).omit({
   id: true,
@@ -566,7 +564,6 @@ export const aulaValidationSchema = insertAulaSchema.extend({
 
 export type InsertAula = z.infer<typeof insertAulaSchema>;
 export type Aula = typeof aulas.$inferSelect;
-export type IAula = typeof aulas.$inferSelect;
 
 // Tabela de serviços
 export const services = pgTable("services", {

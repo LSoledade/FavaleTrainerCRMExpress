@@ -30,9 +30,6 @@ interface IAula {
   recurrenceGroupId?: string;
   isRecurrenceParent?: boolean;
   parentSessionId?: number;
-  googleEventId?: string;
-  createdAt?: string;
-  updatedAt?: string;
   lead?: {
     id: number;
     name: string;
@@ -107,13 +104,6 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
   // Fetch appointments
   const { data: appointments = [], isLoading, refetch } = useQuery<IAula[]>({
     queryKey: ['/api/appointments'],
-    queryFn: async () => {
-      const response = await fetch('/api/appointments');
-      if (!response.ok) {
-        throw new Error('Failed to fetch appointments');
-      }
-      return response.json();
-    },
   });
 
   // Fetch professors
@@ -195,18 +185,15 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
     const groups: { [key: string]: RecurringGroup } = {};
     
     appointments.forEach(appointment => {
-      if (appointment.recurrenceGroupId && appointment.recurrenceGroupId !== 'none' && appointment.recurrenceGroupId !== '') {
+      if (appointment.recurrenceGroupId) {
         const groupId = appointment.recurrenceGroupId;
         if (!groups[groupId]) {
-          const studentName = appointment.lead?.name || students.find(s => s.id === appointment.leadId)?.name || 'N/A';
-          const trainerName = appointment.trainer?.name || professors.find(p => p.id === appointment.trainerId)?.username || 'N/A';
-          
           groups[groupId] = {
             id: groupId,
             sessions: [],
             pattern: appointment.recurrenceType || 'Recorrente',
-            studentName,
-            trainerName,
+            studentName: appointment.lead?.name || 'N/A',
+            trainerName: appointment.trainer?.name || 'N/A',
             source: appointment.source,
             location: appointment.location,
             timeSlot: `${format(parseISO(appointment.startTime), 'HH:mm')} - ${format(parseISO(appointment.endTime), 'HH:mm')}`,
@@ -214,42 +201,21 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
           };
         }
         groups[groupId].sessions.push(appointment);
-      }
-    });
-    
-    // Process groups to find next sessions and update status
-    Object.values(groups).forEach(group => {
-      // Sort sessions by date
-      group.sessions.sort((a, b) => parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime());
-      
-      // Find next session
-      const now = new Date();
-      const futureSessions = group.sessions
-        .filter(s => ['SCHEDULED', 'agendado'].includes(s.status) && parseISO(s.startTime) > now)
-        .sort((a, b) => parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime());
-      
-      if (futureSessions.length > 0) {
-        group.nextSession = futureSessions[0];
-      }
-      
-      // Update group status based on sessions
-      const hasScheduled = group.sessions.some(s => ['SCHEDULED', 'agendado'].includes(s.status));
-      const hasCompleted = group.sessions.some(s => ['COMPLETED', 'concluido'].includes(s.status));
-      const allCancelled = group.sessions.every(s => ['CANCELLED', 'cancelado'].includes(s.status));
-      
-      if (allCancelled) {
-        group.status = 'CANCELLED';
-      } else if (hasScheduled) {
-        group.status = 'SCHEDULED';
-      } else if (hasCompleted) {
-        group.status = 'COMPLETED';
-      } else {
-        group.status = group.sessions[0]?.status || 'SCHEDULED';
+        
+        // Find next session
+        const now = new Date();
+        const futureSessions = groups[groupId].sessions
+          .filter(s => parseISO(s.startTime) > now)
+          .sort((a, b) => parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime());
+        
+        if (futureSessions.length > 0) {
+          groups[groupId].nextSession = futureSessions[0];
+        }
       }
     });
     
     return Object.values(groups);
-  }, [appointments, students, professors]);
+  }, [appointments]);
 
   // Filter appointments
   const filteredAppointments = useMemo(() => {
