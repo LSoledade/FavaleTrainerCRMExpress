@@ -9,6 +9,7 @@ import AuthPage from "@/pages/AuthPage";
 import ConfigPage from "@/pages/ConfigPage";
 import SessionsPage from "@/pages/SessionsPage";
 import CalendarPage from "@/pages/CalendarPage";
+import ProfessorsPage from "@/pages/ProfessorsPage";
 import WhatsappPage from "@/pages/WhatsappPage";
 import WhatsappConfigPage from "@/pages/WhatsappConfigPage";
 import ReportPage from "@/pages/ReportPage";
