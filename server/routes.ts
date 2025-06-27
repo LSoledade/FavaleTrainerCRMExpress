@@ -730,19 +730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get appointments for calendar display
   app.get('/api/appointments', async (req, res) => {
     try {
-      const appointments = await db.select({
-        id: aulas.id,
-        title: aulas.service,
-        service: aulas.service,
-        startTime: aulas.startTime,
-        endTime: aulas.endTime,
-        location: aulas.location,
-        value: aulas.value,
-        notes: aulas.notes,
-        status: aulas.status,
-        professorId: aulas.professorId,
-        studentId: aulas.studentId,
-      }).from(aulas);
+      const appointments = await db.select().from(aulas);
       
       res.json(appointments);
     } catch (error) {
