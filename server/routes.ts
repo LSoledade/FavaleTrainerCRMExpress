@@ -8,7 +8,7 @@ import {
   taskValidationSchema, taskCommentValidationSchema,
   type Session, type Student, type WhatsappMessage
 } from "@shared/schema";
-import { eq, desc, and, or, like, isNull, isNotNull, count, sql, inArray, gte, lte } from "drizzle-orm";
+import { eq, desc, and, or, like, isNull, isNotNull, count, sql as drizzleSql, inArray, gte, lte } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { fromZodError } from "zod-validation-error";
 import { setupAuth } from "./auth";
@@ -698,12 +698,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper function to generate classes from recurrence
+  async function generateClassesFromRecurrence(agendamento: any) {
+    const { regras, startDate, endDate, maxOccurrences } = agendamento;
+    const classes = [];
+    
+    let currentDate = new Date(startDate);
+    const endDateTime = endDate ? new Date(endDate) : null;
+    let count = 0;
+    
+    while (true) {
+      // Check if we should stop
+      if (maxOccurrences && count >= maxOccurrences) break;
+      if (endDateTime && currentDate > endDateTime) break;
+      if (count > 100) break; // Safety limit
+      
+      // Calculate end time for this class (assuming 1 hour duration by default)
+      const classEndTime = new Date(currentDate);
+      classEndTime.setHours(classEndTime.getHours() + 1);
+      
+      // Create the class
+      classes.push({
+        agendamentoRecorrenteId: agendamento.id,
+        professorId: agendamento.professorId,
+        studentId: agendamento.studentId,
+        startTime: new Date(currentDate),
+        endTime: classEndTime,
+        location: agendamento.location,
+        value: agendamento.value,
+        service: agendamento.service,
+        notes: agendamento.notes,
+        status: 'agendado',
+        isModified: false
+      });
+      
+      count++;
+      
+      // Calculate next occurrence based on recurrence rules
+      switch (regras.type) {
+        case 'daily':
+          currentDate.setDate(currentDate.getDate() + regras.interval);
+          break;
+        case 'weekly':
+          currentDate.setDate(currentDate.getDate() + (7 * regras.interval));
+          break;
+        case 'monthly':
+          currentDate.setMonth(currentDate.getMonth() + regras.interval);
+          break;
+        case 'yearly':
+          currentDate.setFullYear(currentDate.getFullYear() + regras.interval);
+          break;
+        default:
+          // For weekly with specific days, we need more complex logic
+          if (regras.type === 'weekly' && regras.weekDays) {
+            // Find next occurrence based on weekDays
+            let found = false;
+            for (let i = 1; i <= 7; i++) {
+              const testDate = new Date(currentDate);
+              testDate.setDate(testDate.getDate() + i);
+              const dayName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][testDate.getDay()];
+              if (regras.weekDays.includes(dayName)) {
+                currentDate = testDate;
+                found = true;
+                break;
+              }
+            }
+            if (!found) break;
+          } else {
+            break;
+          }
+      }
+    }
+    
+    // Insert all classes in batch
+    if (classes.length > 0) {
+      await db.insert(aulas).values(classes);
+    }
+    
+    return classes;
+  }
+
   // Professor routes
   app.get('/api/users/professors', async (req, res) => {
     try {
       const professors = await db.select()
-        .from(schema.users)
-        .where(eq(schema.users.role, 'professor'));
+        .from(users)
+        .where(eq(users.role, 'professor'));
       
       res.json(professors);
     } catch (error) {
@@ -718,11 +798,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Hash password if provided
       if (professorData.password) {
-        const bcrypt = await import('bcrypt');
+        const bcrypt = require('bcrypt');
         professorData.password = await bcrypt.hash(professorData.password, 10);
       }
       
-      const [professor] = await db.insert(schema.users)
+      const [professor] = await db.insert(users)
         .values({
           ...professorData,
           role: 'professor'
