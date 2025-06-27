@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -59,7 +59,7 @@ const WEEKDAYS = [
   { value: 0, label: 'Domingo', short: 'DOM' }
 ];
 
-// Generate time slots from 04:00 to 22:00 (1-hour blocks)
+// Generate time slots from 04:00 to 22:00 (1-hour blocks) - Memoized
 const generateTimeSlots = (): TimeSlot[] => {
   const slots: TimeSlot[] = [];
   for (let hour = 4; hour <= 22; hour++) {
@@ -67,6 +67,9 @@ const generateTimeSlots = (): TimeSlot[] => {
   }
   return slots;
 };
+
+// Memoize the initial time slots generation
+const INITIAL_TIME_SLOTS = generateTimeSlots();
 
 const formatHour = (hour: number): string => {
   return `${hour.toString().padStart(2, '0')}:00`;
@@ -83,11 +86,11 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
   const [location, setLocation] = useState('');
   const [value, setValue] = useState<number>(0);
   const [notes, setNotes] = useState('');
-  const [weeklySchedule, setWeeklySchedule] = useState<DaySchedule[]>(
+  const [weeklySchedule, setWeeklySchedule] = useState<DaySchedule[]>(() =>
     WEEKDAYS.map(day => ({
       dayOfWeek: day.value,
       selected: false,
-      timeSlots: generateTimeSlots(),
+      timeSlots: INITIAL_TIME_SLOTS.map(slot => ({ ...slot })), // Clone inicial dos slots
       selectedProfessors: []
     }))
   );
@@ -166,24 +169,25 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
     }
   });
 
-  // Handle day selection
-  const handleDayToggle = (dayIndex: number) => {
+  // Handle day selection - Otimizado com useCallback
+  const handleDayToggle = useCallback((dayIndex: number) => {
     setWeeklySchedule(prev => 
       prev.map((day, idx) => 
         idx === dayIndex 
           ? { 
               ...day, 
               selected: !day.selected,
-              timeSlots: generateTimeSlots(),
-              selectedProfessors: []
+              // Só reseta time slots se o dia está sendo desmarcado
+              timeSlots: !day.selected ? day.timeSlots : INITIAL_TIME_SLOTS.map(slot => ({ ...slot })),
+              selectedProfessors: !day.selected ? day.selectedProfessors : []
             }
           : day
       )
     );
-  };
+  }, []);
 
-  // Handle time slot selection
-  const handleTimeSlotToggle = (dayIndex: number, slotIndex: number) => {
+  // Handle time slot selection - Otimizado com useCallback
+  const handleTimeSlotToggle = useCallback((dayIndex: number, slotIndex: number) => {
     setWeeklySchedule(prev => 
       prev.map((day, idx) => 
         idx === dayIndex 
@@ -196,10 +200,10 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
           : day
       )
     );
-  };
+  }, []);
 
-  // Handle professor selection
-  const handleProfessorToggle = (dayIndex: number, professorId: number) => {
+  // Handle professor selection - Otimizado com useCallback
+  const handleProfessorToggle = useCallback((dayIndex: number, professorId: number) => {
     setWeeklySchedule(prev => 
       prev.map((day, idx) => 
         idx === dayIndex 
@@ -212,10 +216,16 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
           : day
       )
     );
-  };
+  }, []);
 
-  // Handle form submission
-  const handleSubmit = () => {
+  // Memoizar selectedService para evitar re-cálculos
+  const selectedService = useMemo(() => 
+    services.find(s => s.id === selectedServiceId), 
+    [services, selectedServiceId]
+  );
+
+  // Handle form submission - Otimizado com useCallback
+  const handleSubmit = useCallback(() => {
     if (!selectedStudentId || !selectedServiceId || !startDate) {
       toast({
         title: "Campos obrigatórios",
@@ -267,9 +277,9 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
       endDate: new Date(new Date(startDate).setMonth(new Date(startDate).getMonth() + 3)).toISOString(),
       weeklySchedule: weeklyScheduleData
     });
-  };
+  }, [selectedStudentId, selectedServiceId, startDate, weeklySchedule, leads, services, location, value, notes, createRecurringMutation, toast]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setSelectedStudentId(null);
     setSelectedServiceId(null);
     setStartDate('');
@@ -279,7 +289,7 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
     setWeeklySchedule(WEEKDAYS.map(day => ({
       dayOfWeek: day.value,
       selected: false,
-      timeSlots: generateTimeSlots(),
+      timeSlots: INITIAL_TIME_SLOTS.map(slot => ({ ...slot })),
       selectedProfessors: []
     })));
     setShowNewStudentForm(false);
@@ -287,9 +297,7 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
     setNewStudentEmail('');
     setNewStudentPhone('');
     onClose();
-  };
-
-  const selectedService = services.find(s => s.id === selectedServiceId);
+  }, [onClose]);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -451,7 +459,11 @@ export function RecurringAppointmentDialog({ isOpen, onClose }: RecurringAppoint
             
             {WEEKDAYS.map((weekday, dayIndex) => {
               const daySchedule = weeklySchedule[dayIndex];
-              const selectedTimeSlots = daySchedule.timeSlots.filter(slot => slot.selected);
+              // Memoizar para evitar re-cálculos a cada render
+              const selectedTimeSlots = useMemo(() => 
+                daySchedule.timeSlots.filter(slot => slot.selected),
+                [daySchedule.timeSlots]
+              );
               
               return (
                 <Card key={weekday.value} className={daySchedule.selected ? 'border-pink-500' : ''}>
