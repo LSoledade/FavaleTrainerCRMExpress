@@ -1123,9 +1123,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const studentId = student[0].id;
 
-      // Create recurring appointment record
+      // Create recurring appointment record with correct schema fields
       const recurringAppointment = await db.insert(agendamentosRecorrentes)
         .values({
+          professorId: weeklySchedule[0]?.professorsSchedule[0]?.professorId || 1, // Use first professor as default
           studentId,
           service,
           location: location || '',
@@ -1133,8 +1134,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           notes: notes || '',
           startDate: new Date(startDate),
           endDate: new Date(endDate),
-          pattern: 'weekly',
-          isActive: true
+          regras: { type: 'weekly', interval: 1 }, // Correct field name
+          active: true // Correct field name
         })
         .returning();
 
