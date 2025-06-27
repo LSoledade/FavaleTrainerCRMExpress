@@ -262,8 +262,6 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Calendário</h1>
-          <p className="text-gray-600 mt-1">Gerencie seus agendamentos e aulas</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -391,11 +389,9 @@ export default function CalendarPage() {
 
             <TabsContent value="calendar" className="mt-6">
               {isLoadingAppointments ? (
-                <div className="flex items-center justify-center h-96">
-                  <div className="text-center">
-                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-600" />
-                    <p className="text-gray-600">Carregando agendamentos...</p>
-                  </div>
+                <div className="text-center">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-pink-600" />
+                  <p className="text-gray-600">Carregando agendamentos...</p>
                 </div>
               ) : (
                 <div className="h-[600px]">
