@@ -45,6 +45,15 @@ export interface IAgendamentoRecorrente {
   updatedAt: string;
 }
 
+// Interface para informações do aluno no agendamento
+export interface IStudent {
+  id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+}
+
 // Interface para aulas individuais (compatível com react-big-calendar)
 export interface IAula {
   id: number;
@@ -66,9 +75,13 @@ export interface IAula {
   
   // Campos necessários para react-big-calendar
   title: string; // Será gerado a partir do service e nome do aluno
-  start: Date; // Será convertido de startTime
-  end: Date; // Será convertido de endTime
+  start?: Date; // Será convertido de startTime
+  end?: Date; // Será convertido de endTime
   resource?: any; // Dados adicionais para o calendário
+  
+  // Informações relacionadas (vindas das joins)
+  professor?: IProfessor;
+  student?: IStudent;
 }
 
 // Interface para formulário de nova recorrência

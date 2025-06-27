@@ -730,9 +730,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get appointments for calendar display
   app.get('/api/appointments', async (req, res) => {
     try {
-      const appointments = await db.select().from(aulas);
+      const appointments = await db
+        .select({
+          id: aulas.id,
+          service: aulas.service,
+          startTime: aulas.startTime,
+          endTime: aulas.endTime,
+          location: aulas.location,
+          value: aulas.value,
+          notes: aulas.notes,
+          status: aulas.status,
+          professorId: aulas.professorId,
+          studentId: aulas.studentId,
+          professor: {
+            id: users.id,
+            name: users.name,
+            username: users.username,
+            email: users.email,
+            specialty: users.specialty,
+            bio: users.bio,
+            hourlyRate: users.hourlyRate
+          },
+          student: {
+            id: leads.id,
+            name: leads.name,
+            email: leads.email,
+            phone: leads.phone,
+            notes: leads.notes
+          }
+        })
+        .from(aulas)
+        .leftJoin(users, eq(aulas.professorId, users.id))
+        .leftJoin(leads, eq(aulas.studentId, leads.id));
       
-      res.json(appointments);
+      // Format the data for the calendar
+      const formattedAppointments = appointments.map(appointment => ({
+        ...appointment,
+        title: `${appointment.service} - ${appointment.student?.name || 'Aluno'} (${appointment.professor?.name || appointment.professor?.username || 'Professor'})`
+      }));
+      
+      res.json(formattedAppointments);
     } catch (error) {
       console.error('Erro ao buscar agendamentos:', error);
       res.status(500).json({ message: "Erro ao buscar agendamentos" });

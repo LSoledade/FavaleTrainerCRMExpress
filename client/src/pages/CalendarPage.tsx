@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import MultiDateAppointmentDialog from "@/components/scheduling/MultiDateAppointmentDialog";
+import AppointmentDetailsDialog from "@/components/scheduling/AppointmentDetailsDialog";
 import type { IAula, IProfessor } from "@/types";
 
 // Setup moment localizer for react-big-calendar
@@ -35,6 +36,7 @@ export default function CalendarPage() {
   const [currentView, setCurrentView] = useState<View>("month");
   const [selectedEvent, setSelectedEvent] = useState<IAula | null>(null);
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [filterProfessor, setFilterProfessor] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   
@@ -152,10 +154,10 @@ export default function CalendarPage() {
     };
   }, []);
 
-  // Handle event selection
+  // Handle event selection for details view
   const handleSelectEvent = useCallback((event: Event) => {
     setSelectedEvent(event.resource as IAula);
-    setIsAppointmentDialogOpen(true);
+    setIsDetailsDialogOpen(true);
   }, []);
 
   // Handle date navigation
@@ -168,13 +170,28 @@ export default function CalendarPage() {
     setCurrentView(view);
   }, []);
 
-  // Handle appointment dialog close
+  // Handle appointment dialog close (for creation)
   const handleAppointmentDialogClose = useCallback(() => {
     setIsAppointmentDialogOpen(false);
     setSelectedEvent(null);
     // Refetch appointments to update the calendar
     refetch();
   }, [refetch]);
+
+  // Handle details dialog close (for viewing)
+  const handleDetailsDialogClose = useCallback(() => {
+    setIsDetailsDialogOpen(false);
+    setSelectedEvent(null);
+    // Refetch appointments to update the calendar
+    refetch();
+  }, [refetch]);
+
+  // Handle edit from details dialog
+  const handleEditAppointment = useCallback((appointment: IAula) => {
+    setSelectedEvent(appointment);
+    setIsDetailsDialogOpen(false);
+    setIsAppointmentDialogOpen(true);
+  }, []);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
