@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage, type IStorage } from "./storage";
 import { db } from "./db";
 import { 
-  leads, sessions, users, aulas, agendamentosRecorrentes,
+  leads, sessions, users, aulas, agendamentosRecorrentes, services,
   insertLeadSchema, leadValidationSchema, whatsappMessageValidationSchema,
   taskValidationSchema, taskCommentValidationSchema,
   type Session, type Student, type WhatsappMessage
@@ -1075,6 +1075,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error checking professor availability:', error);
       res.status(500).json({ error: 'Failed to check availability' });
+    }
+  });
+
+  // Get all services
+  app.get('/api/services', async (req, res) => {
+    try {
+      const allServices = await db.select()
+        .from(services)
+        .where(eq(services.active, true))
+        .orderBy(services.name);
+
+      res.json(allServices);
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      res.status(500).json({ error: 'Failed to fetch services' });
     }
   });
 

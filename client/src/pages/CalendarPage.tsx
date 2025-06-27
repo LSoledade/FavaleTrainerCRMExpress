@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import MultiDateAppointmentDialog from "@/components/scheduling/MultiDateAppointmentDialog";
 import AppointmentDetailsDialog from "@/components/scheduling/AppointmentDetailsDialog";
-import RecurringAppointmentDialog from "@/components/scheduling/RecurringAppointmentDialog";
+import { RecurringAppointmentDialog } from "@/components/scheduling/RecurringAppointmentDialog";
 import type { IAula, IProfessor } from "@/types";
 
 // Setup moment localizer for react-big-calendar

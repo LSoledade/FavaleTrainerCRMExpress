@@ -565,6 +565,27 @@ export const aulaValidationSchema = insertAulaSchema.extend({
 export type InsertAula = z.infer<typeof insertAulaSchema>;
 export type Aula = typeof aulas.$inferSelect;
 
+// Tabela de serviços
+export const services = pgTable("services", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  duration: integer("duration").notNull(), // Duração em minutos
+  price: integer("price").notNull(), // Preço em centavos
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertServiceSchema = createInsertSchema(services).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertService = z.infer<typeof insertServiceSchema>;
+export type Service = typeof services.$inferSelect;
+
 // Interface para as regras de recorrência (JSON)
 export interface IRegraRecorrencia {
   type: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
