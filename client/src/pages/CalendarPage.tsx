@@ -15,8 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AppointmentDialog } from "@/components/scheduling/AppointmentDialog";
-import { NewRecurrenceForm } from "@/components/scheduling/NewRecurrenceForm";
+import MultiDateAppointmentDialog from "@/components/scheduling/MultiDateAppointmentDialog";
 import type { IAula, IProfessor } from "@/types";
 
 // Setup moment localizer for react-big-calendar

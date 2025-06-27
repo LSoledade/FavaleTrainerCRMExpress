@@ -699,6 +699,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Simple appointments API for new scheduling system
+  app.post('/api/appointments', async (req, res) => {
+    try {
+      const appointmentData = req.body;
+      
+      // Create a single appointment using the aulas table
+      const aulaData = {
+        professorId: appointmentData.professorId,
+        studentId: appointmentData.studentId,
+        startTime: new Date(appointmentData.startTime),
+        endTime: new Date(appointmentData.endTime),
+        location: appointmentData.location || '',
+        value: appointmentData.value || 0,
+        service: appointmentData.service || '',
+        notes: appointmentData.notes || '',
+        status: 'agendado' as const,
+        isModified: false,
+      };
+
+      const [newAula] = await db.insert(aulas).values(aulaData).returning();
+      
+      res.status(201).json(newAula);
+    } catch (error) {
+      console.error('Erro ao criar agendamento:', error);
+      res.status(500).json({ message: "Erro ao criar agendamento", error: error.message });
+    }
+  });
+
+  // Get appointments for calendar display
+  app.get('/api/appointments', async (req, res) => {
+    try {
+      const appointments = await db.select({
+        id: aulas.id,
+        title: aulas.service,
+        start: aulas.startTime,
+        end: aulas.endTime,
+        location: aulas.location,
+        value: aulas.value,
+        notes: aulas.notes,
+        status: aulas.status,
+        professorId: aulas.professorId,
+        studentId: aulas.studentId,
+      }).from(aulas);
+      
+      res.json(appointments);
+    } catch (error) {
+      console.error('Erro ao buscar agendamentos:', error);
+      res.status(500).json({ message: "Erro ao buscar agendamentos" });
+    }
+  });
+
   // Helper function to generate classes from recurrence
   async function generateClassesFromRecurrence(agendamento: any) {
     const { regras, startDate, endDate, maxOccurrences } = agendamento;

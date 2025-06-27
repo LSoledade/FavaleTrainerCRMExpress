@@ -67,7 +67,7 @@ export default function MultiDateAppointmentDialog({
   });
 
   // Filter only students from leads
-  const students = leads.filter((lead: any) => lead.status === "Aluno");
+  const students = Array.isArray(leads) ? leads.filter((lead: any) => lead.status === "Aluno") : [];
 
   const form = useForm<AppointmentFormData>({
     resolver: zodResolver(appointmentSchema),
@@ -96,10 +96,11 @@ export default function MultiDateAppointmentDialog({
           startTime: `${format(selectedDates[0], "yyyy-MM-dd")} ${data.startTime}:00`,
           endTime: `${format(selectedDates[0], "yyyy-MM-dd")} ${data.endTime}:00`,
         };
-        return apiRequest("/api/appointments", {
+        return fetch("/api/appointments", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(appointmentData),
-        });
+        }).then(res => res.json());
       } else {
         // Multiple appointments or recurring
         const appointments = selectedDates.map(date => ({
@@ -111,10 +112,11 @@ export default function MultiDateAppointmentDialog({
         // Create batch appointments
         return Promise.all(
           appointments.map(appointment =>
-            apiRequest("/api/appointments", {
+            fetch("/api/appointments", {
               method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify(appointment),
-            })
+            }).then(res => res.json())
           )
         );
       }
@@ -301,11 +303,11 @@ export default function MultiDateAppointmentDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {professors.map((professor: any) => (
+                          {Array.isArray(professors) ? professors.map((professor: any) => (
                             <SelectItem key={professor.id} value={professor.id.toString()}>
                               {professor.name} - {professor.specialty}
                             </SelectItem>
-                          ))}
+                          )) : []}
                         </SelectContent>
                       </Select>
                       <FormMessage />
