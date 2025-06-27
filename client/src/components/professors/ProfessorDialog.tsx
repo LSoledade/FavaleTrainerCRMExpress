@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { X, Plus, Minus } from "lucide-react";
+import { User, Mail, Phone, CreditCard, Shield, MapPin } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,19 +20,29 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import type { IProfessor } from "@/types";
 
 // Form validation schema
 const professorFormSchema = z.object({
-  username: z.string().min(1, "Nome de usuário é obrigatório"),
+  username: z.string().min(3, "Username deve ter pelo menos 3 caracteres"),
   password: z.string().optional(),
-  name: z.string().min(1, "Nome é obrigatório"),
+  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   phone: z.string().optional(),
-  specialties: z.array(z.string()).optional(),
+  address: z.string().optional(),
+  specialty: z.string().optional(),
+  bio: z.string().optional(),
+  hourlyRate: z.number().min(0, "Taxa horária deve ser maior ou igual a zero").optional(),
   active: z.boolean().default(true),
 });
 
@@ -45,9 +55,9 @@ interface ProfessorDialogProps {
 }
 
 export function ProfessorDialog({ professor, open, onClose }: ProfessorDialogProps) {
-  const [newSpecialty, setNewSpecialty] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const isEditing = !!professor;
 
   const form = useForm<ProfessorFormData>({
     resolver: zodResolver(professorFormSchema),
@@ -57,35 +67,44 @@ export function ProfessorDialog({ professor, open, onClose }: ProfessorDialogPro
       name: "",
       email: "",
       phone: "",
-      specialties: [],
+      address: "",
+      specialty: "",
+      bio: "",
+      hourlyRate: 0,
       active: true,
     },
   });
 
   // Reset form when professor changes
   useEffect(() => {
-    if (professor) {
+    if (professor && open) {
       form.reset({
-        username: professor.username,
-        password: "", // Don't pre-fill password for security
+        username: professor.username || "",
+        password: "", // Don't show existing password
         name: professor.name || "",
         email: professor.email || "",
         phone: professor.phone || "",
-        specialties: professor.specialties || [],
-        active: professor.active,
+        address: professor.address || "",
+        specialty: professor.specialty || "",
+        bio: professor.bio || "",
+        hourlyRate: professor.hourlyRate ? professor.hourlyRate / 100 : 0, // Convert from cents
+        active: professor.active ?? true,
       });
-    } else {
+    } else if (!professor && open) {
       form.reset({
         username: "",
         password: "",
         name: "",
         email: "",
         phone: "",
-        specialties: [],
+        address: "",
+        specialty: "",
+        bio: "",
+        hourlyRate: 0,
         active: true,
       });
     }
-  }, [professor, form]);
+  }, [professor, open, form]);
 
   // Create professor mutation
   const createProfessorMutation = useMutation({
@@ -96,10 +115,17 @@ export function ProfessorDialog({ professor, open, onClose }: ProfessorDialogPro
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...data,
+          username: data.username,
+          password: data.password,
+          name: data.name,
+          email: data.email || null,
+          phone: data.phone || null,
+          address: data.address || null,
+          specialty: data.specialty || null,
+          bio: data.bio || null,
+          hourlyRate: data.hourlyRate ? Math.round(data.hourlyRate * 100) : null, // Convert to cents
+          active: data.active,
           role: "professor",
-          // Remove empty email to avoid validation errors
-          email: data.email || undefined,
         }),
       });
       
@@ -117,6 +143,7 @@ export function ProfessorDialog({ professor, open, onClose }: ProfessorDialogPro
         description: "Professor criado com sucesso",
       });
       onClose();
+      form.reset();
     },
     onError: (error: Error) => {
       toast({
@@ -130,18 +157,29 @@ export function ProfessorDialog({ professor, open, onClose }: ProfessorDialogPro
   // Update professor mutation
   const updateProfessorMutation = useMutation({
     mutationFn: async (data: ProfessorFormData) => {
+      const updateData: any = {
+        username: data.username,
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone || null,
+        address: data.address || null,
+        specialty: data.specialty || null,
+        bio: data.bio || null,
+        hourlyRate: data.hourlyRate ? Math.round(data.hourlyRate * 100) : null, // Convert to cents
+        active: data.active,
+      };
+
+      // Only include password if it's provided
+      if (data.password && data.password.trim() !== "") {
+        updateData.password = data.password;
+      }
+
       const response = await fetch(`/api/users/professors/${professor!.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...data,
-          // Remove empty email to avoid validation errors
-          email: data.email || undefined,
-          // Only include password if it was provided
-          ...(data.password ? { password: data.password } : {}),
-        }),
+        body: JSON.stringify(updateData),
       });
       
       if (!response.ok) {
@@ -169,81 +207,68 @@ export function ProfessorDialog({ professor, open, onClose }: ProfessorDialogPro
   });
 
   const onSubmit = (data: ProfessorFormData) => {
-    if (professor) {
+    if (isEditing) {
       updateProfessorMutation.mutate(data);
     } else {
       createProfessorMutation.mutate(data);
     }
   };
 
-  const addSpecialty = () => {
-    if (newSpecialty.trim()) {
-      const currentSpecialties = form.getValues("specialties") || [];
-      if (!currentSpecialties.includes(newSpecialty.trim())) {
-        form.setValue("specialties", [...currentSpecialties, newSpecialty.trim()]);
-      }
-      setNewSpecialty("");
-    }
-  };
-
-  const removeSpecialty = (specialtyToRemove: string) => {
-    const currentSpecialties = form.getValues("specialties") || [];
-    form.setValue(
-      "specialties",
-      currentSpecialties.filter((s) => s !== specialtyToRemove)
-    );
-  };
-
-  const isPending = createProfessorMutation.isPending || updateProfessorMutation.isPending;
+  const isLoading = createProfessorMutation.isPending || updateProfessorMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {professor ? "Editar Professor" : "Novo Professor"}
+          <DialogTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            {isEditing ? "Editar Professor" : "Novo Professor"}
           </DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Username */}
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome de Usuário *</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Digite o nome de usuário" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Basic Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Username *
+                    </FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Digite o username" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            {/* Password */}
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Senha {professor ? "(deixe em branco para manter atual)" : "*"}
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type="password"
-                      placeholder="Digite a senha"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      {isEditing ? "Nova Senha (opcional)" : "Senha *"}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="password"
+                        placeholder={isEditing ? "Deixe em branco para manter atual" : "Digite a senha"}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-            {/* Name */}
             <FormField
               control={form.control}
               name="name"
@@ -258,106 +283,139 @@ export function ProfessorDialog({ professor, open, onClose }: ProfessorDialogPro
               )}
             />
 
-            {/* Email */}
+            {/* Contact Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </FormLabel>
+                    <FormControl>
+                      <Input {...field} type="email" placeholder="professor@exemplo.com" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      Telefone
+                    </FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="(11) 99999-9999" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Address */}
             <FormField
               control={form.control}
-              name="email"
+              name="address"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>E-mail</FormLabel>
+                  <FormLabel className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    Endereço
+                  </FormLabel>
                   <FormControl>
-                    <Input {...field} type="email" placeholder="Digite o e-mail" />
+                    <Input {...field} placeholder="Digite o endereço completo" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Phone */}
-            <FormField
-              control={form.control}
-              name="phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Telefone</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="Digite o telefone" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Professional Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="specialty"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Especialidade</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Ex: Personal Trainer, Pilates..." />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            {/* Specialties */}
-            <FormField
-              control={form.control}
-              name="specialties"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Especialidades</FormLabel>
-                  <div className="space-y-3">
-                    {/* Current specialties */}
-                    <div className="flex flex-wrap gap-2">
-                      {(field.value || []).map((specialty) => (
-                        <Badge key={specialty} variant="secondary" className="flex items-center gap-2">
-                          {specialty}
-                          <button
-                            type="button"
-                            onClick={() => removeSpecialty(specialty)}
-                            className="ml-1 text-muted-foreground hover:text-foreground"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                    
-                    {/* Add new specialty */}
-                    <div className="flex gap-2">
+              <FormField
+                control={form.control}
+                name="hourlyRate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Taxa Horária (R$)
+                    </FormLabel>
+                    <FormControl>
                       <Input
-                        value={newSpecialty}
-                        onChange={(e) => setNewSpecialty(e.target.value)}
-                        placeholder="Digite uma especialidade"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            addSpecialty();
-                          }
-                        }}
+                        {...field}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                       />
-                      <Button
-                        type="button"
-                        onClick={addSpecialty}
-                        size="sm"
-                        variant="outline"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Bio */}
+            <FormField
+              control={form.control}
+              name="bio"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Biografia</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      placeholder="Digite uma breve biografia do professor..."
+                      rows={3}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Active */}
+            {/* Active Status */}
             <FormField
               control={form.control}
               name="active"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Professor Ativo</FormLabel>
-                    <div className="text-sm text-muted-foreground">
-                      Professores ativos podem ser atribuídos a aulas
-                    </div>
-                  </div>
+                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                   <FormControl>
-                    <Switch
+                    <Checkbox
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Professor Ativo</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Desmarque para desativar temporariamente o professor
+                    </p>
+                  </div>
                 </FormItem>
               )}
             />
@@ -368,17 +426,12 @@ export function ProfessorDialog({ professor, open, onClose }: ProfessorDialogPro
                 type="button"
                 variant="outline"
                 onClick={onClose}
-                disabled={isPending}
+                disabled={isLoading}
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isPending}>
-                {isPending
-                  ? "Salvando..."
-                  : professor
-                  ? "Atualizar"
-                  : "Criar"
-                }
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Salvando..." : isEditing ? "Atualizar" : "Criar Professor"}
               </Button>
             </div>
           </form>

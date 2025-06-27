@@ -77,6 +77,7 @@ export function AppointmentDialog({ aula, open, onClose }: AppointmentDialogProp
   // Fetch leads for display
   const { data: leads = [] } = useQuery({
     queryKey: ["/api/leads"],
+    select: (data: any) => data as any[]
   });
 
   // Reset form when aula changes

@@ -45,6 +45,7 @@ export default function Sidebar({ open, setOpen, expanded = true }: SidebarProps
     { path: "/leads", label: "Leads", icon: "people" },
     { path: "/agendamentos", label: "Agendamentos", icon: "calendar_today" },
     { path: "/calendario", label: "Calendário", icon: "event" },
+    { path: "/professores", label: "Professores", icon: "school" },
     { path: "/tarefas", label: "Tarefas", icon: "assignment" },
     { path: "/whatsapp", label: "WhatsApp", icon: "chat" },
     { path: "/favale-ia", label: "FavaleIA", icon: "psychology" },

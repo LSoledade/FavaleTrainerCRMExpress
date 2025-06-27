@@ -6,6 +6,10 @@ export interface IProfessor {
   name?: string;
   email?: string;
   phone?: string;
+  address?: string;
+  specialty?: string;
+  bio?: string;
+  hourlyRate?: number;
   specialties?: string[];
   active: boolean;
   createdAt: string;

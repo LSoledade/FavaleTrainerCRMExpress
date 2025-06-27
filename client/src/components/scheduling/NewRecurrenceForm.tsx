@@ -105,6 +105,7 @@ export function NewRecurrenceForm({ open, onClose }: NewRecurrenceFormProps) {
   // Fetch leads (students)
   const { data: leads = [] } = useQuery({
     queryKey: ["/api/leads"],
+    select: (data: any) => data as any[]
   });
 
   // Filter only students (leads with status "Aluno")

@@ -32,6 +32,7 @@ function Router() {
       <ProtectedRoute path="/leads" component={LeadsPage} />
       <ProtectedRoute path="/agendamentos" component={SessionsPage} />
       <ProtectedRoute path="/calendario" component={CalendarPage} />
+      <ProtectedRoute path="/professores" component={ProfessorsPage} />
       <ProtectedRoute path="/whatsapp" component={WhatsappPage} />
       <ProtectedRoute path="/whatsapp/config" component={WhatsappConfigPage} />
       <ProtectedRoute path="/favale-ia" component={FavaleIAPage} />

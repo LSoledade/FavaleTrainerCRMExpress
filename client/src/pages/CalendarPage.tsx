@@ -45,8 +45,30 @@ export default function CalendarPage() {
 
   // Calculate date range for queries
   const dateRange = useMemo(() => {
-    const start = moment(currentDate).startOf(currentView).subtract(1, 'week').toDate();
-    const end = moment(currentDate).endOf(currentView).add(1, 'week').toDate();
+    let startOfPeriod: moment.Moment;
+    let endOfPeriod: moment.Moment;
+
+    switch (currentView) {
+      case 'month':
+        startOfPeriod = moment(currentDate).startOf('month');
+        endOfPeriod = moment(currentDate).endOf('month');
+        break;
+      case 'week':
+      case 'work_week':
+        startOfPeriod = moment(currentDate).startOf('week');
+        endOfPeriod = moment(currentDate).endOf('week');
+        break;
+      case 'day':
+        startOfPeriod = moment(currentDate).startOf('day');
+        endOfPeriod = moment(currentDate).endOf('day');
+        break;
+      default:
+        startOfPeriod = moment(currentDate).startOf('month');
+        endOfPeriod = moment(currentDate).endOf('month');
+    }
+
+    const start = startOfPeriod.subtract(1, 'week').toDate();
+    const end = endOfPeriod.add(1, 'week').toDate();
     return { start, end };
   }, [currentDate, currentView]);
 
