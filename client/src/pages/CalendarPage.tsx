@@ -399,6 +399,13 @@ export default function CalendarPage() {
         appointment={selectedEvent}
         onEdit={handleEditAppointment}
       />
+
+      {/* Recurring Appointment Dialog */}
+      <RecurringAppointmentDialog
+        isOpen={isRecurringDialogOpen}
+        onClose={handleRecurringDialogClose}
+        professors={professors}
+      />
     </div>
   );
 }

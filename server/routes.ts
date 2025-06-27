@@ -1030,6 +1030,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check professor availability for recurring appointments
+  app.post('/api/professors/availability', async (req, res) => {
+    try {
+      const { professorId, dayOfWeek, startTime, endTime, startDate, endDate } = req.body;
+
+      if (!professorId || dayOfWeek === undefined || !startTime || !endTime || !startDate || !endDate) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // Convert day of week and times to check for conflicts
+      const start = new Date(`2024-01-01T${startTime}:00`);
+      const end = new Date(`2024-01-01T${endTime}:00`);
+      
+      // Query for conflicting appointments in the date range
+      const conflicts = await db.select()
+        .from(aulas)
+        .where(
+          and(
+            eq(aulas.professorId, professorId),
+            gte(aulas.startTime, new Date(startDate)),
+            lte(aulas.startTime, new Date(endDate)),
+            eq(sql`EXTRACT(dow FROM ${aulas.startTime})`, dayOfWeek),
+            or(
+              and(
+                lte(sql`EXTRACT(hour FROM ${aulas.startTime}) * 60 + EXTRACT(minute FROM ${aulas.startTime})`,
+                    start.getHours() * 60 + start.getMinutes()),
+                gte(sql`EXTRACT(hour FROM ${aulas.endTime}) * 60 + EXTRACT(minute FROM ${aulas.endTime})`,
+                    start.getHours() * 60 + start.getMinutes())
+              ),
+              and(
+                lte(sql`EXTRACT(hour FROM ${aulas.startTime}) * 60 + EXTRACT(minute FROM ${aulas.startTime})`,
+                    end.getHours() * 60 + end.getMinutes()),
+                gte(sql`EXTRACT(hour FROM ${aulas.endTime}) * 60 + EXTRACT(minute FROM ${aulas.endTime})`,
+                    end.getHours() * 60 + end.getMinutes())
+              )
+            )
+          )
+        );
+
+      const available = conflicts.length === 0;
+      res.json({ available, conflicts: conflicts.length });
+
+    } catch (error) {
+      console.error('Error checking professor availability:', error);
+      res.status(500).json({ error: 'Failed to check availability' });
+    }
+  });
+
+  // Create recurring appointments
+  app.post('/api/appointments/recurring', async (req, res) => {
+    try {
+      const { studentName, service, location, value, notes, startDate, endDate, weeklySchedule } = req.body;
+
+      if (!studentName || !service || !startDate || !endDate || !weeklySchedule?.length) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // First, create or find the student
+      let student = await db.select()
+        .from(leads)
+        .where(eq(leads.name, studentName))
+        .limit(1);
+
+      if (student.length === 0) {
+        // Create new student
+        const newStudent = await db.insert(leads)
+          .values({
+            name: studentName,
+            status: 'ativo',
+            source: 'agendamento_recorrente',
+            entryDate: new Date()
+          })
+          .returning();
+        student = newStudent;
+      }
+
+      const studentId = student[0].id;
+
+      // Create recurring appointment record
+      const recurringAppointment = await db.insert(agendamentosRecorrentes)
+        .values({
+          studentId,
+          service,
+          location: location || '',
+          value: value || 0,
+          notes: notes || '',
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          pattern: 'weekly',
+          isActive: true
+        })
+        .returning();
+
+      const recurringId = recurringAppointment[0].id;
+
+      // Generate individual appointments
+      const appointments = [];
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      for (let currentDate = new Date(start); currentDate <= end; currentDate.setDate(currentDate.getDate() + 1)) {
+        const dayOfWeek = currentDate.getDay();
+        
+        // Find schedule for this day
+        const daySchedule = weeklySchedule.find(schedule => schedule.dayOfWeek === dayOfWeek);
+        
+        if (daySchedule) {
+          for (const profSchedule of daySchedule.professorsSchedule) {
+            for (const timeSlot of profSchedule.timeSlots) {
+              const startTime = new Date(currentDate);
+              const endTime = new Date(currentDate);
+              
+              // Parse time slots
+              const [startHour, startMin] = timeSlot.startTime.split(':').map(Number);
+              const [endHour, endMin] = timeSlot.endTime.split(':').map(Number);
+              
+              startTime.setHours(startHour, startMin, 0, 0);
+              endTime.setHours(endHour, endMin, 0, 0);
+
+              appointments.push({
+                agendamentoRecorrenteId: recurringId,
+                professorId: profSchedule.professorId,
+                studentId,
+                startTime,
+                endTime,
+                location: location || '',
+                value: value || 0,
+                service,
+                notes: notes || '',
+                status: 'agendado' as const,
+                isModified: false
+              });
+            }
+          }
+        }
+      }
+
+      // Insert all appointments
+      if (appointments.length > 0) {
+        await db.insert(aulas).values(appointments);
+      }
+
+      res.json({
+        success: true,
+        recurringAppointmentId: recurringId,
+        appointmentsCreated: appointments.length,
+        message: `${appointments.length} agendamentos criados com sucesso`
+      });
+
+    } catch (error) {
+      console.error('Error creating recurring appointments:', error);
+      res.status(500).json({ error: 'Failed to create recurring appointments' });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
