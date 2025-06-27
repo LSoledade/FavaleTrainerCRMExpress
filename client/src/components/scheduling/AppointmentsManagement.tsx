@@ -75,15 +75,20 @@ interface AppointmentsManagementProps {
 }
 
 const STATUS_LABELS = {
-  SCHEDULED: { label: "Agendada", color: "bg-blue-500" },
-  DESM_DIA: { label: "Desmarcada no dia", color: "bg-red-500" },
-  DESM_ANTEC: { label: "Desmarcada com antecedência", color: "bg-orange-500" },
-  DESM_MANUF: { label: "Desmarcada pelo professor/academia", color: "bg-purple-500" },
-  REP: { label: "Reposição", color: "bg-yellow-500" },
-  REP_DESM_DIA: { label: "Reposição desmarcada no dia", color: "bg-red-700" },
-  AULA_ADIC: { label: "Aula adicional", color: "bg-green-500" },
-  COMPLETED: { label: "Realizada", color: "bg-emerald-500" },
-  CANCELLED: { label: "Cancelada definitivamente", color: "bg-gray-500" },
+  SCHEDULED: { label: "Agendada", color: "bg-blue-500", textColor: "text-white" },
+  DESM_DIA: { label: "Desmarcada no dia", color: "bg-red-500", textColor: "text-white" },
+  DESM_ANTEC: { label: "Desmarcada com antecedência", color: "bg-orange-500", textColor: "text-white" },
+  DESM_MANUF: { label: "Desmarcada pelo professor/academia", color: "bg-purple-500", textColor: "text-white" },
+  REP: { label: "Reposição", color: "bg-yellow-500", textColor: "text-black" },
+  REP_DESM_DIA: { label: "Reposição desmarcada no dia", color: "bg-red-700", textColor: "text-white" },
+  AULA_ADIC: { label: "Aula adicional", color: "bg-green-500", textColor: "text-white" },
+  COMPLETED: { label: "Realizada", color: "bg-emerald-500", textColor: "text-white" },
+  CANCELLED: { label: "Cancelada definitivamente", color: "bg-gray-500", textColor: "text-white" },
+  agendado: { label: "Agendada", color: "bg-blue-500", textColor: "text-white" },
+  em_andamento: { label: "Em andamento", color: "bg-blue-600", textColor: "text-white" },
+  concluido: { label: "Concluída", color: "bg-green-500", textColor: "text-white" },
+  cancelado: { label: "Cancelada", color: "bg-red-500", textColor: "text-white" },
+  remarcado: { label: "Remarcada", color: "bg-orange-500", textColor: "text-white" }
 };
 
 const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
@@ -215,9 +220,9 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
   // Filter appointments
   const filteredAppointments = useMemo(() => {
     return appointments.filter(appointment => {
-      const matchesProfessor = !filterProfessor || appointment.trainerId.toString() === filterProfessor;
-      const matchesStudent = !filterStudent || appointment.leadId.toString() === filterStudent;
-      const matchesStatus = !filterStatus || appointment.status === filterStatus;
+      const matchesProfessor = !filterProfessor || filterProfessor === 'all' || appointment.trainerId.toString() === filterProfessor;
+      const matchesStudent = !filterStudent || filterStudent === 'all' || appointment.leadId.toString() === filterStudent;
+      const matchesStatus = !filterStatus || filterStatus === 'all' || appointment.status === filterStatus;
       const matchesSearch = !searchTerm || 
         appointment.lead?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         appointment.trainer?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -230,9 +235,9 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
   // Filter recurring groups
   const filteredRecurringGroups = useMemo(() => {
     return recurringGroups.filter(group => {
-      const matchesProfessor = !filterProfessor || group.sessions.some(s => s.trainerId.toString() === filterProfessor);
-      const matchesStudent = !filterStudent || group.sessions.some(s => s.leadId.toString() === filterStudent);
-      const matchesStatus = !filterStatus || group.status === filterStatus;
+      const matchesProfessor = !filterProfessor || filterProfessor === 'all' || group.sessions.some(s => s.trainerId.toString() === filterProfessor);
+      const matchesStudent = !filterStudent || filterStudent === 'all' || group.sessions.some(s => s.leadId.toString() === filterStudent);
+      const matchesStatus = !filterStatus || filterStatus === 'all' || group.status === filterStatus;
       const matchesSearch = !searchTerm || 
         group.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         group.trainerName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -307,7 +312,7 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
                   <SelectValue placeholder="Todos os alunos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os alunos</SelectItem>
+                  <SelectItem value="all">Todos os alunos</SelectItem>
                   {students.map((student) => (
                     <SelectItem key={student.id} value={student.id.toString()}>
                       {student.name}
@@ -324,7 +329,7 @@ const AppointmentsManagement = ({ onRefresh }: AppointmentsManagementProps) => {
                   <SelectValue placeholder="Todos os status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os status</SelectItem>
+                  <SelectItem value="all">Todos os status</SelectItem>
                   {Object.entries(STATUS_LABELS).map(([key, value]) => (
                     <SelectItem key={key} value={key}>
                       {value.label}
