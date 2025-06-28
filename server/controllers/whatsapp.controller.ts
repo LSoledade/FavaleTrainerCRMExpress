@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
-import { leads, whatsappMessages, type WhatsappMessage } from "@shared/schema"; // Ensure whatsappMessages table schema is imported if needed for raw query
+import { leads, whatsappMessages, type WhatsappMessage } from "../schema"; // Ensure whatsappMessages table schema is imported if needed for raw query
 import { sql } from 'drizzle-orm';
 import { normalizePhone } from "../utils/lead.utils"; // Import normalizePhone
 import { 

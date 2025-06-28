@@ -60,7 +60,7 @@ Um CRM completo desenvolvido em React + TypeScript para gestão de leads, tarefa
 ### Backend
 - **Node.js** com Express
 - **TypeScript**
-- **SQLite** com Drizzle ORM
+- **PostgreSQL** com Drizzle ORM
 - **Zod** para validação
 - **JWT** para autenticação
 - **Evolution API** para WhatsApp

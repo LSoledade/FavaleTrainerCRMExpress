@@ -5,7 +5,7 @@
 
 import axios from 'axios';
 import { log } from './vite';
-import { Lead } from '@shared/schema';
+import { Lead } from './schema';
 import { storage } from './storage';
 
 // Configurações da API do WhatsApp

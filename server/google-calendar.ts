@@ -1,6 +1,6 @@
 import { calendar as googleCalendar, auth as googleAuth } from '@googleapis/calendar';
 import { storage } from './storage';
-import { Trainer, Session } from '@shared/schema';
+import { Trainer, Session } from './schema';
 import { formatInTimeZone } from 'date-fns-tz';
 
 // Configuração do OAuth2
