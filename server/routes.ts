@@ -1,34 +1,36 @@
 import type { Express, Request, Response, NextFunction, RequestHandler } from "express";
 import { createServer, type Server } from "http";
-import { storage, type IStorage } from "./storage";
-import { db } from "./db";
-import { 
-  leads, sessions, users, aulas, agendamentosRecorrentes, services,
-  insertLeadSchema, leadValidationSchema, whatsappMessageValidationSchema,
-  taskValidationSchema, taskCommentValidationSchema,
-  type Session, type Student, type WhatsappMessage
-} from "./schema";
-import * as schema from "./schema";
-import { eq, desc, and, or, like, isNull, isNotNull, count, sql as drizzleSql, inArray, gte, lte } from "drizzle-orm";
-import { randomUUID } from "crypto";
-import { fromZodError } from "zod-validation-error";
+// import { storage, type IStorage } from "./storage"; // storage is used by controllers, not directly here
+// import { db } from "./db"; // Drizzle db instance - REMOVE
+// Drizzle schema and ORM imports - REMOVE
+// import {
+//   leads, sessions, users, aulas, agendamentosRecorrentes, services,
+//   insertLeadSchema, leadValidationSchema, whatsappMessageValidationSchema,
+//   taskValidationSchema, taskCommentValidationSchema,
+//   type Session, type Student, type WhatsappMessage
+// } from "./schema";
+// import * as schema from "./schema";
+// import { eq, desc, and, or, like, isNull, isNotNull, count, sql as drizzleSql, inArray, gte, lte } from "drizzle-orm";
+// import { sql } from 'drizzle-orm';
+
+// import { randomUUID } from "crypto"; // Not used directly
+// import { fromZodError } from "zod-validation-error"; // Not used directly
 // import { setupAuth } from "./auth"; // Removed, Supabase handles auth
-import { logAuditEvent, AuditEventType, getRecentAuditLogs } from "./audit-log";
-import { 
-  sendWhatsAppMessage, 
-  sendWhatsAppTemplate, 
-  checkWhatsAppConnection, 
-  formatPhoneNumber, 
-  sendWhatsAppImage,
-  getWhatsAppQRCode,
-  checkMessageStatus,
-  saveConfigSettings,
-  getConfigSettings
-} from "./whatsapp-service";
-import { getWeatherByCity, checkWeatherService } from "./weather-service";
-import { log } from "./vite";
-import { sql } from 'drizzle-orm';
-import bcrypt from 'bcrypt';
+// import { logAuditEvent, AuditEventType, getRecentAuditLogs } from "./audit-log"; // Used by controllers
+// import {
+//   sendWhatsAppMessage,
+//   sendWhatsAppTemplate,
+//   checkWhatsAppConnection,
+//   formatPhoneNumber,
+//   sendWhatsAppImage,
+//   getWhatsAppQRCode,
+//   checkMessageStatus,
+//   saveConfigSettings,
+//   getConfigSettings
+// } from "./whatsapp-service"; // Used by controllers
+// import { getWeatherByCity, checkWeatherService } from "./weather-service"; // Used by controllers
+// import { log } from "./vite"; // Not used directly
+// import bcrypt from 'bcrypt'; // Not used directly, Supabase handles passwords
 
 // Import new user router and middlewares
 import userRouter from "./routes/user.routes";
