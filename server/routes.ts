@@ -12,7 +12,7 @@ import * as schema from "./schema";
 import { eq, desc, and, or, like, isNull, isNotNull, count, sql as drizzleSql, inArray, gte, lte } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { fromZodError } from "zod-validation-error";
-import { setupAuth } from "./auth";
+// import { setupAuth } from "./auth"; // Removed, Supabase handles auth
 import { logAuditEvent, AuditEventType, getRecentAuditLogs } from "./audit-log";
 import { 
   sendWhatsAppMessage, 
@@ -39,14 +39,18 @@ import auditLogRouter from "./routes/auditLog.routes"; // Import auditLog router
 import weatherRouter from "./routes/weather.routes"; // Import weather router
 import schedulingRouter from "./routes/scheduling.routes"; // Import scheduling router
 import statsRouter from "./routes/stats.routes"; // Import stats router
-import { isAuthenticated, isAdmin } from "./middlewares/auth.middleware"; // Import middlewares
+import { isAuthenticated, isAdmin, jwtAuthMiddlewareGlobal } from "./middlewares/auth.middleware.js"; // Import middlewares
 import { addUserNamesToTasks } from "./utils/task.utils"; // Import addUserNamesToTasks
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Set up authentication routes and middleware
-  setupAuth(app);
+  // Apply global JWT middleware to try to authenticate user from token
+  app.use(jwtAuthMiddlewareGlobal);
+
+  // Authentication routes (e.g., /api/user) will be handled by userRouter or a new authRouter if needed.
+  // Supabase handles direct login/registration, so no /api/login, /api/register, /api/logout here.
 
    Use the new routers
+   // User routes, including fetching current user info
    app.use("/api/users", userRouter);
    app.use("/api/leads", leadRouter); // Use lead router
    app.use("/api/tasks", taskRouter); // Use task router
