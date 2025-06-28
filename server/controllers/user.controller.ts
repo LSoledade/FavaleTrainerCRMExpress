@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { storage } from "../storage"; // Adjust path as needed
 import { hashPassword } from "../utils/auth.utils"; // Import the moved function
-import { professorValidationSchema } from "../../shared/schema";
+import { professorValidationSchema } from "@shared/schema";
 import { ZodError } from "zod";
 
 // Lista de usuários

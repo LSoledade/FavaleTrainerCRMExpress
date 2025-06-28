@@ -18,10 +18,12 @@ import {
   type AgendamentoRecorrente, type InsertAgendamentoRecorrente,
   type Aula, type InsertAula
 } from "./schema";
-import { db, pool } from "./db";
+import { db } from "./db"; // Removed pool import
 import { eq, and, desc, asc, between, inArray, or, like, sql, SQL } from "drizzle-orm";
 import session from "express-session";
-import connectPg from "connect-pg-simple";
+import connectPgSimple from "connect-pg-simple"; // Corrected import name
+import pg from "pg"; // Import pg
+const { Pool } = pg; // Destructure Pool
 import { alias } from "drizzle-orm/pg-core";
 
 // modify the interface with any CRUD methods
@@ -171,9 +173,16 @@ export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
-    this.sessionStore = new PostgresSessionStore({
-      pool,
-      createTableIfMissing: true
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is not defined in environment variables for session store.");
+    }
+    const pgPool = new Pool({ // Use the destructured Pool
+      connectionString: process.env.DATABASE_URL,
+    });
+    const SessionStore = connectPgSimple(session); // Call connectPgSimple with session
+    this.sessionStore = new SessionStore({ // Use the returned constructor
+      pool: pgPool,
+      createTableIfMissing: true,
     });
   }
   async getUser(id: number): Promise<User | undefined> {
