@@ -17,7 +17,7 @@ import {
   agendamentosRecorrentes, aulas,
   type AgendamentoRecorrente, type InsertAgendamentoRecorrente,
   type Aula, type InsertAula
-} from "@shared/schema";
+} from "./schema";
 import { db, pool } from "./db";
 import { eq, and, desc, asc, between, inArray, or, like, sql, SQL } from "drizzle-orm";
 import session from "express-session";

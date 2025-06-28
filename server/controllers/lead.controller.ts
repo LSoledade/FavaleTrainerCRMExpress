@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { storage } from "../storage";
-import { leadValidationSchema } from "@shared/schema";
+import { leadValidationSchema } from "../schema";
 import { fromZodError } from "zod-validation-error";
 import { normalizePhone } from "../utils/lead.utils"; // Import the utility function
 import { logAuditEvent, AuditEventType } from "../audit-log";

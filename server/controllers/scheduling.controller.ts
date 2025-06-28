@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { storage } from "../storage"; // Adjust path as needed
-import { leads } from "@shared/schema"; // Import leads schema if needed for filtering
-import type { Session, Student } from "@shared/schema"; // Assuming Session and Student types are in schema
+import { leads } from "../schema"; // Import leads schema if needed for filtering
+import type { Session, Student } from "../schema"; // Assuming Session and Student types are in schema
 
 // Placeholder for actual database interactions or more complex logic
 // For now, we'll move the existing mocked/simple logic here.

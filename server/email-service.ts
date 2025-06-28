@@ -1,4 +1,4 @@
-import { Session, Trainer } from '@shared/schema';
+import { Session, Trainer } from './schema';
 import { formatInTimeZone } from 'date-fns-tz';
 
 // TODO: Implementar configuração de e-mail quando as credenciais estiverem disponíveis

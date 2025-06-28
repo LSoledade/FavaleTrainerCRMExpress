@@ -1,11 +1,6 @@
 // Script para criar tabelas no banco de dados PostgreSQL
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { migrate } from 'drizzle-orm/neon-serverless/migrator';
-import ws from 'ws';
-import * as schema from './shared/schema.js';
-
-neonConfig.webSocketConstructor = ws;
+import postgres from 'postgres';
+import * as schema from '../schema.js'; // Embora não usado diretamente aqui, pode ser útil para referência futura ou se o script evoluir.
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -13,13 +8,13 @@ async function main() {
   }
 
   console.log('Conectando ao banco de dados PostgreSQL...');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const db = drizzle(pool, { schema });
+  const sql = postgres(process.env.DATABASE_URL);
 
-  console.log('Criando tabelas se elas não existirem...');
+  try {
+    console.log('Criando tabelas se elas não existirem...');
 
-  // Usar SQL direto para criar tabelas na ordem correta
-  await pool.query(`
+    // Usar SQL direto para criar tabelas na ordem correta
+    await sql.unsafe(`
     -- Tabela de usuários
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -136,18 +131,20 @@ async function main() {
     );
   `);
 
-  console.log('Tabelas criadas com sucesso!');
+    console.log('Tabelas criadas com sucesso!');
 
-  // Criar um usuário administrador padrão se não existir
-  await pool.query(`
+    // Criar um usuário administrador padrão se não existir
+    await sql.unsafe(`
     INSERT INTO users (username, password, role)
     SELECT 'admin', '6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b.d16fb36f027d1f03df5b55c19a97f5348270210146e38d0c657a683b3d774732', 'admin'
     WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'admin')
   `);
 
-  console.log('Usuário admin criado com sucesso!');
-
-  await pool.end();
+    console.log('Usuário admin criado com sucesso!');
+  } finally {
+    await sql.end();
+    console.log('Conexão com o banco de dados fechada.');
+  }
 }
 
 main().catch(error => {
