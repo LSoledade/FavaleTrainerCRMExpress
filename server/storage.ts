@@ -1,10 +1,10 @@
 import { 
   leads, students, trainers, sessions, sessionHistory, whatsappMessages,
-  tasks, taskComments,
-  type Lead, type InsertLead, 
-  type User, type InsertUser, 
-  type Student, type InsertStudent,
-  type Trainer, type InsertTrainer,
+  tasks, taskComments, // These are Drizzle schema objects
+  type Lead, type InsertLead, // These are Drizzle-generated types
+  // type User, type InsertUser, // Drizzle User types, replaced by SupabaseUser
+  type Student, type InsertStudent, // Drizzle-generated types
+  type Trainer, type InsertTrainer, // Drizzle-generated types
   type Session, type InsertSession,
   type SessionHistory, type InsertSessionHistory,
   type WhatsappMessage, type InsertWhatsappMessage,
@@ -17,34 +17,43 @@ import {
   agendamentosRecorrentes, aulas,
   type AgendamentoRecorrente, type InsertAgendamentoRecorrente,
   type Aula, type InsertAula
-} from "./schema";
-import { db } from "./db"; // Removed pool import
-import { eq, and, desc, asc, between, inArray, or, like, sql, SQL } from "drizzle-orm";
+} from "./schema"; // Drizzle schema, may need to be replaced or adapted
+// import { db } from "./db"; // Drizzle db instance, will be replaced by Supabase client
+import { supabase } from "./supabase.js"; // Supabase client
+// import { eq, and, desc, asc, between, inArray, or, like, sql, SQL } from "drizzle-orm"; // Drizzle operators
+// import { alias } from "drizzle-orm/pg-core"; // Drizzle alias
 
-import { alias } from "drizzle-orm/pg-core";
+// Define Supabase-specific types if needed, or use generic object/any for now and refine
+// Example: Supabase User might be different from Drizzle User type
+type SupabaseUser = {
+  id: string; // UUID
+  email?: string;
+  app_metadata?: { role?: string; roles?: string[]; [key: string]: any };
+  user_metadata?: { [key: string]: any };
+  [key: string]: any;
+};
+
 
 // modify the interface with any CRUD methods
 // you might need
 
 export interface IStorage {
-  // User methods
-  getUser(id: number): Promise<User | undefined>;
-  getUserById(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  getAllUsers(): Promise<User[]>;
-  deleteUser(id: number): Promise<boolean>;
+  // User/Professor methods - will interact with Supabase Auth and potentially a 'profiles' table
+  // IDs will be UUID strings from Supabase Auth
+  getUserById(id: string): Promise<SupabaseUser | undefined>; // Changed id to string
+  getUserByEmail(email: string): Promise<SupabaseUser | undefined>;
+  // createUser, getAllUsers, deleteUser are more complex with Supabase Auth,
+  // often handled by Supabase client SDK or Admin API directly, not via this storage layer.
   
-  // Professor methods (users with role='professor')
-  getAllProfessors(): Promise<User[]>;
-  createProfessor(professor: InsertUser): Promise<User>;
-  updateProfessor(id: number, professor: Partial<InsertUser>): Promise<User | undefined>;
-  deleteProfessor(id: number): Promise<boolean>;
-  hasScheduledClasses(professorId: number): Promise<boolean>;
+  // Professor methods (users with role='professor' in Supabase)
+  getAllProfessors(): Promise<SupabaseUser[]>; // Returns SupabaseUser
+  createProfessor(professorData: Partial<SupabaseUser> & { email: string; password?: string }): Promise<SupabaseUser>; // Adjusted for Supabase
+  updateProfessor(id: string, professorData: Partial<SupabaseUser>): Promise<SupabaseUser | undefined>; // id is string
+  deleteProfessor(id: string): Promise<boolean>; // id is string
+  hasScheduledClasses(professorId: string): Promise<boolean>; // professorId is string
 
-  // Lead methods
-  getLeads(): Promise<Lead[]>;
+  // Lead methods - will interact with a 'leads' table in Supabase
+  getLeads(): Promise<Lead[]>; // Assuming Lead type can be reused or adapted
   getLead(id: number): Promise<Lead | undefined>;
   createLead(lead: InsertLead): Promise<Lead>;
   updateLead(id: number, lead: Partial<InsertLead>): Promise<Lead | undefined>;
@@ -122,9 +131,6 @@ export interface IStorage {
   createTaskComment(comment: InsertTaskComment): Promise<TaskComment>;
   deleteTaskComment(id: number): Promise<boolean>;
 
-  // Session store for authentication
-  
-
   // WhatsApp Settings methods
   getWhatsappSettings(): Promise<WhatsappSettings | undefined>;
   saveWhatsappSettings(settings: InsertWhatsappSettings): Promise<WhatsappSettings>;
@@ -158,1084 +164,781 @@ export interface IStorage {
   deleteAula(id: number): Promise<boolean>;
   
   // Lead helpers
-  getLeadById(id: number): Promise<Lead | undefined>;
+  getLeadById(id: number): Promise<Lead | undefined>; // Keep if useful, adapt to Supabase
   
-  // Conflict checking
-  checkSchedulingConflicts(professorId: number, studentId: number, startTime: Date, endTime: Date, excludeAulaId?: number): Promise<any>;
+  // Conflict checking for scheduling
+  checkSchedulingConflicts(professorId: string, studentId: string, startTime: Date, endTime: Date, excludeAulaId?: number): Promise<any>; // ids are strings
 }
 
-
-
-export class DatabaseStorage implements IStorage {
+export class SupabaseStorage implements IStorage {
   
-
-  
-  async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(insertUser)
-      .returning();
-    return user;
-  }
-
-  async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users);
-  }
-
-  async deleteUser(id: number): Promise<boolean> {
-    try {
-      await db.delete(users).where(eq(users.id, id));
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir usuário:", error);
-      return false;
-    }
-  }
-
-  // New professor and user helper methods
-  async getUserById(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user || undefined;
-  }
-
-  async getAllProfessors(): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.role, 'professor'));
-  }
-
-  async createProfessor(professor: InsertUser): Promise<User> {
-    const [createdProfessor] = await db
-      .insert(users)
-      .values({ ...professor, role: 'professor' })
-      .returning();
-    return createdProfessor;
-  }
-
-  async updateProfessor(id: number, professor: Partial<InsertUser>): Promise<User | undefined> {
-    try {
-      const [updatedProfessor] = await db
-        .update(users)
-        .set({ ...professor, updatedAt: new Date() })
-        .where(eq(users.id, id))
-        .returning();
-      return updatedProfessor || undefined;
-    } catch (error) {
-      console.error("Erro ao atualizar professor:", error);
+  // User/Professor methods using Supabase Auth
+  async getUserById(id: string): Promise<SupabaseUser | undefined> {
+    // This typically requires admin privileges if fetching arbitrary users.
+    // If fetching the currently authenticated user, client-side supabase.auth.getUser() is preferred.
+    // For this backend context, assuming an admin-like capability or specific use case.
+    console.warn(`[SupabaseStorage] getUserById: Fetching user ${id}. Ensure admin privileges if not current user.`);
+    const { data, error } = await supabase.auth.admin.getUserById(id);
+    if (error) {
+      console.error(`[SupabaseStorage] Error fetching user by ID ${id}:`, error.message);
       return undefined;
     }
+    return data.user as SupabaseUser;
   }
 
-  async deleteProfessor(id: number): Promise<boolean> {
-    try {
-      await db.delete(users).where(eq(users.id, id));
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir professor:", error);
+  async getUserByEmail(email: string): Promise<SupabaseUser | undefined> {
+    // Supabase doesn't have a direct admin method to get user by email without listing all users.
+    // This might need a profiles table or a more complex query if strictly needed on backend.
+    // For now, this is a placeholder and might be inefficient or require a different approach.
+    console.warn("[SupabaseStorage] getUserByEmail: This method might be inefficient with Supabase admin API.");
+    const { data, error } = await supabase.auth.admin.listUsers({ email }); // Not a direct filter, check Supabase docs
+     if (error) {
+      console.error(`[SupabaseStorage] Error listing users by email ${email}:`, error.message);
+      return undefined;
+    }
+    // This lists users, then we'd have to find the exact match.
+    const user = data.users.find(u => u.email === email);
+    return user as SupabaseUser | undefined;
+  }
+
+  async getAllProfessors(): Promise<SupabaseUser[]> {
+    // Fetches all users and filters by a role in app_metadata.
+    // This can be inefficient for a large number of users.
+    // A 'profiles' table with a 'role' column queryable via PostgREST would be better.
+    console.warn("[SupabaseStorage] getAllProfessors: Fetching all users and filtering. Consider a 'profiles' table for efficiency.");
+    const { data, error } = await supabase.auth.admin.listUsers({ perPage: 1000 }); // Adjust perPage as needed
+    if (error) {
+      console.error("[SupabaseStorage] Error fetching all users for getAllProfessors:", error.message);
+      return [];
+    }
+    return data.users.filter(
+      (user) => user.app_metadata?.role === 'professor' || user.app_metadata?.roles?.includes('professor')
+    ) as SupabaseUser[];
+  }
+
+  async createProfessor(professorData: Partial<SupabaseUser> & { email: string; password?: string }): Promise<SupabaseUser> {
+    console.log("[SupabaseStorage] Creating professor:", professorData.email);
+    const { email, password, ...otherMetadata } = professorData;
+
+    const app_metadata = { ...otherMetadata.app_metadata, role: 'professor' };
+    if (otherMetadata.name) delete otherMetadata.name; // Assuming name goes to user_metadata or a profiles table
+
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: email,
+      password: password, // Optional: if not provided, Supabase sends an invite
+      email_confirm: true, // Or false, depending on flow
+      app_metadata: app_metadata,
+      user_metadata: { ...otherMetadata.user_metadata, name: professorData.name }, // Example: store name here
+    });
+
+    if (error) {
+      console.error("[SupabaseStorage] Error creating professor:", error.message);
+      throw new Error(`Failed to create professor: ${error.message}`);
+    }
+    return data.user as SupabaseUser;
+  }
+
+  async updateProfessor(id: string, professorData: Partial<SupabaseUser>): Promise<SupabaseUser | undefined> {
+    console.log(`[SupabaseStorage] Updating professor ${id} with data:`, professorData);
+    // app_metadata and user_metadata should be updated carefully.
+    // Supabase merges, so provide only fields to change.
+    const updatePayload: any = {};
+    if (professorData.app_metadata) updatePayload.app_metadata = professorData.app_metadata;
+    if (professorData.user_metadata) updatePayload.user_metadata = professorData.user_metadata;
+    if (professorData.password) updatePayload.password = professorData.password; // For password changes
+    if (professorData.email) updatePayload.email = professorData.email; // For email changes (triggers confirmation)
+
+
+    const { data, error } = await supabase.auth.admin.updateUserById(id, updatePayload);
+
+    if (error) {
+      console.error(`[SupabaseStorage] Error updating professor ${id}:`, error.message);
+      return undefined;
+    }
+    return data.user as SupabaseUser;
+  }
+
+  async deleteProfessor(id: string): Promise<boolean> {
+    console.log(`[SupabaseStorage] Deleting professor ${id}`);
+    const { error } = await supabase.auth.admin.deleteUser(id);
+    if (error) {
+      console.error(`[SupabaseStorage] Error deleting professor ${id}:`, error.message);
       return false;
     }
+    return true;
   }
 
-  async hasScheduledClasses(professorId: number): Promise<boolean> {
-    try {
-      // Check if professor has any future classes
-      const now = new Date();
-      const result = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(sessions)
-        .where(
-          and(
-            eq(sessions.trainerId, professorId),
-            sql`${sessions.startTime} > ${now}`,
-            sql`${sessions.status} != 'cancelado'`
-          )
-        );
-      
-      return (result[0]?.count || 0) > 0;
+  async hasScheduledClasses(professorId: string): Promise<boolean> {
+    // This needs to query the 'aulas' or 'sessions' table where professorId matches.
+    // Assuming 'aulas' table and 'professorId' (UUID string) column.
+    console.log(`[SupabaseStorage] Checking scheduled classes for professor ${professorId}`);
+    const now = new Date().toISOString();
+    const { data, error, count } = await supabase
+      .from('aulas') // Replace 'aulas' with your actual table name for classes/sessions
+      .select('id', { count: 'exact', head: true })
+      .eq('professor_id', professorId) // Ensure column name is correct, e.g., professor_id
+      .gt('start_time', now) // Assuming 'start_time' column
+      .neq('status', 'cancelado'); // Assuming 'status' column
+
+    if (error) {
+      console.error("[SupabaseStorage] Error checking scheduled classes:", error.message);
+      return false; // Or throw error, depending on desired behavior
+    }
+    return (count || 0) > 0;
     } catch (error) {
       console.error("Erro ao verificar aulas agendadas:", error);
       return false;
     }
   }
 
-  // Lead methods
+  // Lead methods - using Supabase client for 'leads' table
   async getLeads(): Promise<Lead[]> {
-    return await db.select().from(leads);
+    const { data, error } = await supabase.from('leads').select('*');
+    if (error) {
+      console.error("[SupabaseStorage] Error fetching leads:", error.message);
+      throw error;
+    }
+    return data as Lead[];
   }
 
   async getLead(id: number): Promise<Lead | undefined> {
-    const [lead] = await db.select().from(leads).where(eq(leads.id, id));
-    return lead || undefined;
+    const { data, error } = await supabase.from('leads').select('*').eq('id', id).single();
+    if (error && error.code !== 'PGRST116') { // PGRST116: "Searched item was not found"
+      console.error(`[SupabaseStorage] Error fetching lead ${id}:`, error.message);
+      throw error;
+    }
+    return data as Lead | undefined;
   }
 
   async createLead(insertLead: InsertLead): Promise<Lead> {
-    try {
-      console.log('Inserindo lead no banco:', {
-        ...insertLead,
-        notes: insertLead.notes || null,
-      });
+    // Ensure entryDate is correctly formatted if it's part of InsertLead
+    const leadToInsert = { ...insertLead };
+    if (leadToInsert.entryDate && !(leadToInsert.entryDate instanceof Date)) {
+        leadToInsert.entryDate = new Date(leadToInsert.entryDate);
+    }
+    // Convert Date objects to ISO strings if your Supabase column expects timestamptz or date string
+    if (leadToInsert.entryDate instanceof Date) {
+      // @ts-ignore
+      leadToInsert.entryDate = leadToInsert.entryDate.toISOString();
+    }
 
-      // Ensure entryDate is a Date object
-      const leadDataToInsert: InsertLead = {
-        ...insertLead,
-        notes: insertLead.notes || null,
-        entryDate: insertLead.entryDate instanceof Date 
-          ? insertLead.entryDate 
-          : insertLead.entryDate 
-            ? new Date(insertLead.entryDate)
-            : new Date(),
-      };
 
-      const [lead] = await db
-        .insert(leads)
-        .values(leadDataToInsert as any) // Type assertion to work around Drizzle type inference
-        .returning();
-
-      console.log('Lead criado com sucesso:', lead);
-      return lead;
-    } catch (error) {
-      console.error('Erro ao inserir lead no banco:', error);
+    const { data, error } = await supabase.from('leads').insert(leadToInsert as any).select().single();
+    if (error) {
+      console.error("[SupabaseStorage] Error creating lead:", error.message);
       throw error;
     }
+    return data as Lead;
   }
 
   async updateLead(id: number, updates: Partial<InsertLead>): Promise<Lead | undefined> {
-    // Process updates, ensuring correct types for DB
-    const processedUpdates: { [key: string]: any } = { ...updates }; // Use a more flexible type initially
-
-    if (updates.entryDate && typeof updates.entryDate === 'string') {
-      try {
-        processedUpdates.entryDate = new Date(updates.entryDate);
-      } catch (e) {
-        console.error("Invalid date format for entryDate during update:", updates.entryDate);
-        // Decide how to handle invalid date - skip update or throw error? Here we skip.
-        delete processedUpdates.entryDate;
-      }
+    const updatePayload = { ...updates, updated_at: new Date().toISOString() };
+     if (updatePayload.entryDate && !(updatePayload.entryDate instanceof Date)) {
+        // @ts-ignore
+        updatePayload.entryDate = new Date(updatePayload.entryDate);
     }
-    processedUpdates.updatedAt = new Date();
+    if (updatePayload.entryDate instanceof Date) {
+      // @ts-ignore
+      updatePayload.entryDate = updatePayload.entryDate.toISOString();
+    }
 
-    // Explicitly cast to Partial<Lead> before setting, ensuring type alignment
-    const [updatedLead] = await db
-      .update(leads)
-      .set(processedUpdates as Partial<Lead>) 
-      .where(eq(leads.id, id))
-      .returning();
-    return updatedLead || undefined;
+
+    const { data, error } = await supabase.from('leads').update(updatePayload as any).eq('id', id).select().single();
+    if (error) {
+      console.error(`[SupabaseStorage] Error updating lead ${id}:`, error.message);
+      // If the error is "No rows found", it means the lead doesn't exist, which can be treated as undefined.
+      if (error.code === 'PGRST204') return undefined; // PGRST204: No Content (update/delete returned no rows)
+      throw error;
+    }
+    return data as Lead | undefined;
   }
 
   async deleteLead(id: number): Promise<boolean> {
-    try {
-      // First delete any associated WhatsApp messages
-      await db
-        .delete(whatsappMessages)
-        .where(eq(whatsappMessages.leadId, id));
-
-      // Then delete the lead
-      await db
-        .delete(leads)
-        .where(eq(leads.id, id));
-
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir lead:", error);
-      throw error; // Re-throw to be caught by the route handler
+    // Consider related data, e.g., deleting associated whatsapp_messages if necessary
+    // This might involve a transaction or multiple calls if RLS/policies don't handle cascades.
+    // For now, just deleting the lead.
+    const { error } = await supabase.from('leads').delete().eq('id', id);
+    if (error) {
+      console.error(`[SupabaseStorage] Error deleting lead ${id}:`, error.message);
+      return false;
     }
+    return true;
   }
 
   async getLeadsBySource(source: string): Promise<Lead[]> {
-    return await db
-      .select()
-      .from(leads)
-      .where(eq(leads.source, source));
+    const { data, error } = await supabase.from('leads').select('*').eq('source', source);
+    if (error) throw error;
+    return data as Lead[];
   }
 
   async getLeadsByStatus(status: string): Promise<Lead[]> {
-    return await db
-      .select()
-      .from(leads)
-      .where(eq(leads.status, status));
+    const { data, error } = await supabase.from('leads').select('*').eq('status', status);
+    if (error) throw error;
+    return data as Lead[];
   }
 
   async getLeadsByCampaign(campaign: string): Promise<Lead[]> {
-    return await db
-      .select()
-      .from(leads)
-      .where(eq(leads.campaign, campaign));
+    const { data, error } = await supabase.from('leads').select('*').eq('campaign', campaign);
+    if (error) throw error;
+    return data as Lead[];
   }
 
   async getLeadsByState(state: string): Promise<Lead[]> {
-    return await db
-      .select()
-      .from(leads)
-      .where(eq(leads.state, state));
+    const { data, error } = await supabase.from('leads').select('*').eq('state', state);
+    if (error) throw error;
+    return data as Lead[];
   }
 
   async getLeadsByPhone(phone: string): Promise<Lead[]> {
-    // Remove qualquer formatação do número antes de buscar
     const cleanPhone = phone.replace(/\D/g, '');
-    return await db
-      .select()
-      .from(leads)
-      .where(
-        // Verifica padrões diferentes do telefone (com e sem código do país/DDD)
-        or(
-          like(leads.phone, `%${cleanPhone}%`),
-          // Se o número passado parece já ter código de país (mais de 10 dígitos)
-          // tenta buscar versão sem código de país também
-          cleanPhone.length > 10 
-            ? like(leads.phone, `%${cleanPhone.substring(2)}%`) 
-            : sql`false`
-        )
-      );
+    // This might need a more sophisticated search, e.g., using textSearch or ilike for partial matches.
+    // For exact match on a cleaned phone number (assuming phone column stores it cleaned):
+    const { data, error } = await supabase.from('leads').select('*').like('phone', `%${cleanPhone}%`); // Basic partial match
+    if (error) throw error;
+    return data as Lead[];
   }
 
-  // Batch operations
+  // Batch operations might need to be re-evaluated. Supabase JS client doesn't support batch updates/deletes in one go like Drizzle's `inArray`.
+  // You'd typically loop and perform individual operations, or use a Supabase Edge Function.
   async updateLeadsInBatch(ids: number[], updates: Partial<InsertLead>): Promise<number> {
-    if (ids.length === 0) return 0;
-
-    // Process updates for batch, ensuring correct types
-    const processedUpdates: { [key: string]: any } = { ...updates }; // Use flexible type
-
-    if (updates.entryDate && typeof updates.entryDate === 'string') {
-       try {
-        processedUpdates.entryDate = new Date(updates.entryDate);
-      } catch (e) {
-        console.error("Invalid date format for entryDate during batch update:", updates.entryDate);
-        delete processedUpdates.entryDate;
-      }
+    console.warn("[SupabaseStorage] updateLeadsInBatch: Performing individual updates. Consider Edge Function for true batching.");
+    let successCount = 0;
+    for (const id of ids) {
+      const updated = await this.updateLead(id, updates);
+      if (updated) successCount++;
     }
-    processedUpdates.updatedAt = new Date();
-
-    // Explicitly cast to Partial<Lead> before setting
-    const result = await db
-      .update(leads)
-      .set(processedUpdates as Partial<Lead>) 
-      .where(sql`${leads.id} IN (${sql.join(ids, sql`, `)})`);
-
-    // Drizzle's update doesn't directly return affected rows count easily in all drivers
-    // We return the number of IDs passed as an approximation
-    return ids.length; 
+    return successCount;
   }
 
   async deleteLeadsInBatch(ids: number[]): Promise<number> {
-    if (ids.length === 0) return 0;
-
-    // First delete all WhatsApp messages associated with these leads
-    try {
-      // Delete related WhatsApp messages first
-      await db
-        .delete(whatsappMessages)
-        .where(sql`${whatsappMessages.leadId} IN (${sql.join(ids, sql`, `)})`);
-
-      // Then delete the leads
-      await db
-        .delete(leads)
-        .where(sql`${leads.id} IN (${sql.join(ids, sql`, `)})`);
-
-      return ids.length; // Return the number of deleted rows
-    } catch (error) {
-      console.error("Erro ao excluir leads em lote:", error);
-      throw error; // Re-throw to be caught by the route handler
+    console.warn("[SupabaseStorage] deleteLeadsInBatch: Performing individual deletes. Consider Edge Function for true batching.");
+    let successCount = 0;
+    for (const id of ids) {
+      const deleted = await this.deleteLead(id);
+      if (deleted) successCount++;
     }
+    return successCount;
   }
 
-  // Trainer methods
+  // Trainer methods: Assuming 'trainers' is a table in Supabase.
+  // If trainers are just users with a 'trainer' role, these methods would be similar to professor methods.
+  // For this example, let's assume 'trainers' is a separate table like 'leads'.
+  // The Trainer type would need to match the table structure.
   async getTrainers(): Promise<Trainer[]> {
-    return await db.select().from(trainers).orderBy(trainers.name);
+    const { data, error } = await supabase.from('trainers').select('*').order('name');
+    if (error) throw error;
+    return data as Trainer[];
   }
 
   async getTrainer(id: number): Promise<Trainer | undefined> {
-    const [trainer] = await db.select().from(trainers).where(eq(trainers.id, id));
-    return trainer || undefined;
+    const { data, error } = await supabase.from('trainers').select('*').eq('id', id).single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data as Trainer | undefined;
   }
 
   async createTrainer(insertTrainer: InsertTrainer): Promise<Trainer> {
-    const [trainer] = await db
-      .insert(trainers)
-      .values({
-        ...insertTrainer,
-      })
-      .returning();
-    return trainer;
+    const { data, error } = await supabase.from('trainers').insert(insertTrainer as any).select().single();
+    if (error) throw error;
+    return data as Trainer;
   }
 
   async updateTrainer(id: number, updates: Partial<InsertTrainer>): Promise<Trainer | undefined> {
-    const [updatedTrainer] = await db
-      .update(trainers)
-      .set({
-        ...updates,
-        updatedAt: new Date(),
-      })
-      .where(eq(trainers.id, id))
-      .returning();
-    return updatedTrainer || undefined;
+    const { data, error } = await supabase.from('trainers').update({ ...updates, updated_at: new Date().toISOString() } as any).eq('id', id).select().single();
+    if (error && error.code !== 'PGRST204') throw error;
+    return data as Trainer | undefined;
   }
 
   async deleteTrainer(id: number): Promise<boolean> {
-    try {
-      await db.delete(trainers).where(eq(trainers.id, id));
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir professor:", error);
-      return false;
-    }
+    const { error } = await supabase.from('trainers').delete().eq('id', id);
+    return !error;
   }
 
   async getActiveTrainers(): Promise<Trainer[]> {
-    return await db
-      .select()
-      .from(trainers)
-      .where(eq(trainers.active, true))
-      .orderBy(trainers.name);
+    const { data, error } = await supabase.from('trainers').select('*').eq('active', true).order('name');
+    if (error) throw error;
+    return data as Trainer[];
   }
 
   async getTrainersBySpecialty(specialty: string): Promise<Trainer[]> {
-    // A busca por especialidade é mais complexa porque é um array
-    // Usamos SQL customizado para verificar se o array contém a especialidade
-    return await db
-      .select()
-      .from(trainers)
-      .where(sql`${specialty} = ANY(${trainers.specialties})`);
+    // Assuming 'specialties' is an array column (e.g., text[])
+    const { data, error } = await supabase.from('trainers').select('*').contains('specialties', [specialty]);
+    if (error) throw error;
+    return data as Trainer[];
   }
 
-  // Student methods
+
+  // Student methods: Assuming 'students' table.
   async getStudents(): Promise<Student[]> {
-    return await db.select().from(students).orderBy(students.id);
+    const { data, error } = await supabase.from('students').select('*').order('id');
+    if (error) throw error;
+    return data as Student[];
   }
 
   async getStudent(id: number): Promise<Student | undefined> {
-    const [student] = await db.select().from(students).where(eq(students.id, id));
-    return student || undefined;
+    const { data, error } = await supabase.from('students').select('*').eq('id', id).single();
+     if (error && error.code !== 'PGRST116') throw error;
+    return data as Student | undefined;
   }
 
   async getStudentByLeadId(leadId: number): Promise<Student | undefined> {
-    const [student] = await db.select().from(students).where(eq(students.leadId, leadId));
-    return student || undefined;
+    const { data, error } = await supabase.from('students').select('*').eq('lead_id', leadId).single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data as Student | undefined;
   }
 
   async createStudent(insertStudent: InsertStudent): Promise<Student> {
-    const [student] = await db
-      .insert(students)
-      .values({
-        ...insertStudent,
-      })
-      .returning();
-    return student;
+    const { data, error } = await supabase.from('students').insert(insertStudent as any).select().single();
+    if (error) throw error;
+    return data as Student;
   }
 
   async updateStudent(id: number, updates: Partial<InsertStudent>): Promise<Student | undefined> {
-    const [updatedStudent] = await db
-      .update(students)
-      .set({
-        ...updates,
-        updatedAt: new Date(),
-      })
-      .where(eq(students.id, id))
-      .returning();
-    return updatedStudent || undefined;
+    const { data, error } = await supabase.from('students').update({ ...updates, updated_at: new Date().toISOString() } as any).eq('id', id).select().single();
+    if (error && error.code !== 'PGRST204') throw error;
+    return data as Student | undefined;
   }
 
   async deleteStudent(id: number): Promise<boolean> {
-    try {
-      await db.delete(students).where(eq(students.id, id));
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir aluno:", error);
-      return false;
-    }
+    const { error } = await supabase.from('students').delete().eq('id', id);
+    return !error;
   }
 
   async getActiveStudents(): Promise<Student[]> {
-    return await db
-      .select()
-      .from(students)
-      .where(eq(students.active, true))
-      .orderBy(students.id);
+    const { data, error } = await supabase.from('students').select('*').eq('active', true).order('id');
+    if (error) throw error;
+    return data as Student[];
   }
 
   async getStudentsBySource(source: string): Promise<Student[]> {
-    return await db
-      .select()
-      .from(students)
-      .where(eq(students.source, source));
+    const { data, error } = await supabase.from('students').select('*').eq('source', source);
+    if (error) throw error;
+    return data as Student[];
   }
 
   async getStudentsWithLeadInfo(): Promise<(Student & { lead: Lead | null })[]> {
-    // Explicitly select columns and structure the result
-    const result = await db
-      .select({
-        student: students, // Select all columns from students
-        lead: leads,       // Select all columns from leads
-      })
-      .from(students)
-      .leftJoin(leads, eq(students.leadId, leads.id));
-
-    // Map the result to the desired structure
-    return result.map(row => ({
-      ...row.student,
-      lead: row.lead, // lead can be null due to leftJoin
-    }));
+    // This requires a join. Supabase syntax for this is:
+    // rpc call or a view, or fetching students then leads separately and merging.
+    // Simple approach: fetch students, then for each student with lead_id, fetch lead. Less efficient.
+    // Better: supabase.from('students').select('*, leads(*)') if FK is set up.
+    const { data: studentsData, error } = await supabase.from('students').select('*, leads ( * )');
+    if (error) {
+      console.error("[SupabaseStorage] Error in getStudentsWithLeadInfo:", error.message);
+      throw error;
+    }
+    // The result will have 'leads' nested if the relationship is defined in Supabase.
+    // Adapt the return type and mapping accordingly.
+    return studentsData as (Student & { lead: Lead | null })[];
   }
 
-  // Session methods
+  // Session methods (assuming 'sessions' table)
   async getSessions(): Promise<Session[]> {
-    return await db.select().from(sessions).orderBy(desc(sessions.startTime));
+    const { data, error } = await supabase.from('sessions').select('*').order('start_time', { ascending: false });
+    if (error) throw error;
+    return data as Session[];
   }
 
   async getSession(id: number): Promise<Session | undefined> {
-    const [session] = await db.select().from(sessions).where(eq(sessions.id, id));
-    return session || undefined;
+    const { data, error } = await supabase.from('sessions').select('*').eq('id', id).single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data as Session | undefined;
   }
 
   async createSession(insertSession: InsertSession): Promise<Session> {
-    const [session] = await db
-      .insert(sessions)
-      .values({
-        ...insertSession,
-      })
-      .returning();
-    return session;
+    const { data, error } = await supabase.from('sessions').insert(insertSession as any).select().single();
+    if (error) throw error;
+    return data as Session;
   }
 
   async updateSession(id: number, updates: Partial<InsertSession>): Promise<Session | undefined> {
-    const [updatedSession] = await db
-      .update(sessions)
-      .set({
-        ...updates,
-        updatedAt: new Date(),
-      })
-      .where(eq(sessions.id, id))
-      .returning();
-    return updatedSession || undefined;
+    const { data, error } = await supabase.from('sessions').update({ ...updates, updated_at: new Date().toISOString() } as any).eq('id', id).select().single();
+     if (error && error.code !== 'PGRST204') throw error;
+    return data as Session | undefined;
   }
 
   async deleteSession(id: number): Promise<boolean> {
-    try {
-      await db.delete(sessions).where(eq(sessions.id, id));
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir sessão:", error);
-      return false;
-    }
+    const { error } = await supabase.from('sessions').delete().eq('id', id);
+    return !error;
   }
 
   async getSessionsByStudentId(studentId: number): Promise<Session[]> {
-    return await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.leadId, studentId))
-      .orderBy(desc(sessions.startTime));
+    // Assuming studentId in 'sessions' table is 'student_id' or 'lead_id'
+    const { data, error } = await supabase.from('sessions').select('*').eq('lead_id', studentId).order('start_time', { ascending: false });
+    if (error) throw error;
+    return data as Session[];
   }
 
-  async getSessionsByTrainerId(trainerId: number): Promise<Session[]> {
-    return await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.trainerId, trainerId))
-      .orderBy(desc(sessions.startTime));
+  async getSessionsByTrainerId(trainerId: number): Promise<Session[]> { // trainerId might be string (UUID) now
+     const { data, error } = await supabase.from('sessions').select('*').eq('trainer_id', trainerId).order('start_time', { ascending: false });
+    if (error) throw error;
+    return data as Session[];
   }
 
   async getSessionsByDateRange(startDate: Date, endDate: Date): Promise<Session[]> {
-    return await db
-      .select()
-      .from(sessions)
-      .where(and(
-        between(sessions.startTime, startDate, endDate),
-      ))
-      .orderBy(asc(sessions.startTime));
+    const { data, error } = await supabase.from('sessions').select('*')
+      .gte('start_time', startDate.toISOString())
+      .lte('start_time', endDate.toISOString()) // or 'end_time' depending on logic for range
+      .order('start_time', { ascending: true });
+    if (error) throw error;
+    return data as Session[];
   }
 
   async getSessionsByStatus(status: string): Promise<Session[]> {
-    return await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.status, status))
-      .orderBy(desc(sessions.startTime));
+    const { data, error } = await supabase.from('sessions').select('*').eq('status', status).order('start_time', { ascending: false });
+    if (error) throw error;
+    return data as Session[];
   }
 
   async getSessionsBySource(source: string): Promise<Session[]> {
-    return await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.source, source))
-      .orderBy(desc(sessions.startTime));
+     const { data, error } = await supabase.from('sessions').select('*').eq('source', source).order('start_time', { ascending: false });
+    if (error) throw error;
+    return data as Session[];
   }
 
   async getSessionsWithDetails(): Promise<any[]> {
-    // Alias para evitar colisões de nome
-    const s = alias(students, 'student');
-    const t = alias(trainers, 'trainer');
-    const l = alias(leads, 'lead');
+    // This is a complex join. Best handled by a Supabase View or RPC function, or multiple queries.
+    // Example with client-side join (less efficient for large data):
+    // 1. Fetch sessions
+    // 2. For each session, fetch student (with lead) and trainer details.
+    // OR, if FKs are set up: supabase.from('sessions').select('*, students(*, leads(*)), trainers(*)')
+    console.warn("[SupabaseStorage] getSessionsWithDetails: Using nested selects. Consider a DB view or RPC for performance.");
+    const { data, error } = await supabase.from('sessions').select(`
+      id, start_time, end_time, location, notes, status, source, created_at, updated_at,
+      student:students (id, source, address, lead:leads (name, email, phone)),
+      trainer:trainers (id, name, email, phone, specialties)
+    `).order('start_time', { ascending: false });
 
-    return await db
-      .select({
-        id: sessions.id,
-        startTime: sessions.startTime,
-        endTime: sessions.endTime,
-        location: sessions.location,
-        notes: sessions.notes,
-        status: sessions.status,
-        source: sessions.source,
-        createdAt: sessions.createdAt,
-        updatedAt: sessions.updatedAt,
-        student: {
-          id: s.id,
-          name: l.name,
-          email: l.email,
-          phone: l.phone,
-          source: s.source,
-          address: s.address,
-        },
-        trainer: {
-          id: t.id,
-          name: t.name,
-          email: t.email,
-          phone: t.phone,
-          specialties: t.specialties,
-        }
-      })
-      .from(sessions)
-      .leftJoin(s, eq(sessions.leadId, s.leadId))
-      .leftJoin(t, eq(sessions.trainerId, t.id))
-      .leftJoin(l, eq(s.leadId, l.id))
-      .orderBy(desc(sessions.startTime));
-  }
-
-  async getCompletedSessionsByStudent(
-    studentId: number, 
-    startDate?: Date, 
-    endDate?: Date
-  ): Promise<Session[]> {
-    // Define base conditions as an array, explicitly typing elements as SQL
-    const conditions: SQL[] = [
-      eq(sessions.leadId, studentId) as SQL,
-      eq(sessions.status, 'concluido') as SQL // Ensure this matches your actual status value
-    ];
-
-    // Conditionally add the date range filter to the conditions array
-    if (startDate && endDate) {
-      conditions.push(between(sessions.startTime, startDate, endDate) as SQL);
+    if (error) {
+      console.error("[SupabaseStorage] Error in getSessionsWithDetails:", error.message);
+      throw error;
     }
-
-    // Build and execute the query using the conditions array
-    return await db
-      .select()
-      .from(sessions)
-      .where(and(...conditions)) // Apply all conditions using and()
-      .orderBy(asc(sessions.startTime));
+    // Map to desired structure if needed, Supabase might return nested objects directly.
+    return data.map((s: any) => ({
+        ...s, // session fields
+        student: s.students ? { ...s.students, ...s.students.leads } : null, // flatten student and lead
+        trainer: s.trainers
+    }));
   }
 
-  // Session history methods
+  async getCompletedSessionsByStudent(studentId: number, startDate?: Date, endDate?: Date): Promise<Session[]> {
+    let query = supabase.from('sessions').select('*')
+      .eq('lead_id', studentId)
+      .eq('status', 'concluido');
+    if (startDate) query = query.gte('start_time', startDate.toISOString());
+    if (endDate) query = query.lte('start_time', endDate.toISOString());
+    query = query.order('start_time', { ascending: true });
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data as Session[];
+  }
+
+  // Session history methods (assuming 'session_history' table)
   async createSessionHistory(history: InsertSessionHistory): Promise<SessionHistory> {
-    // Use the imported table schema object (aliased as sessionHistoryTable)
-    const [newSessionHistory] = await db
-      .insert(sessionHistoryTable) // Use the correct table schema object
-      .values(history)
-      .returning();
-    return newSessionHistory; // Return the newly created history entry
+    const { data, error } = await supabase.from('session_history').insert(history as any).select().single();
+    if (error) throw error;
+    return data as SessionHistory;
   }
 
   async getSessionHistoryBySessionId(sessionId: number): Promise<SessionHistory[]> {
-    return await db
-      .select()
-      .from(sessionHistoryTable) // Use the correct table schema object
-      .where(eq(sessionHistoryTable.sessionId, sessionId))
-      .orderBy(desc(sessionHistoryTable.changedAt));
+    const { data, error } = await supabase.from('session_history').select('*').eq('session_id', sessionId).order('changed_at', { ascending: false });
+    if (error) throw error;
+    return data as SessionHistory[];
   }
 
-  // Task methods
+  // Task methods (assuming 'tasks' table)
+  // Note: assigned_to_id, assigned_by_id might become UUID strings if they refer to Supabase users.
   async getTasks(): Promise<Task[]> {
-    return await db.select().from(tasks).orderBy(desc(tasks.createdAt));
+    const { data, error } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as Task[];
   }
 
   async getTask(id: number): Promise<Task | undefined> {
-    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
-    return task || undefined;
+    const { data, error } = await supabase.from('tasks').select('*').eq('id', id).single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data as Task | undefined;
   }
 
   async createTask(insertTask: InsertTask): Promise<Task> {
-    // Log the incoming task data
-    console.log('Creating task with data:', JSON.stringify(insertTask, null, 2));
-
-    // Create a new object with processed data
-    const processedTask = {
-      ...insertTask,
-    };
-
-    // Ensure dueDate is a proper Date object if it exists
-    if (processedTask.dueDate !== undefined && processedTask.dueDate !== null) {
-      // If it's already a Date object, keep it; otherwise, try to create a new Date
-      if (!(processedTask.dueDate instanceof Date)) {
-        console.log('Converting dueDate to Date object:', processedTask.dueDate);
-        try {
-          processedTask.dueDate = new Date(processedTask.dueDate);
-          console.log('Converted dueDate:', processedTask.dueDate);
-        } catch (error) {
-          console.error('Failed to convert dueDate to Date object:', error);
-          // If conversion fails, set to null to avoid database errors
-          processedTask.dueDate = null;
-        }
-      }
+     const taskToInsert = { ...insertTask };
+     if (taskToInsert.due_date && !(taskToInsert.due_date instanceof Date)) {
+        // @ts-ignore
+        taskToInsert.due_date = new Date(taskToInsert.due_date);
     }
-
-    // Log the processed task data
-    console.log('Processed task data:', JSON.stringify(processedTask, null, 2));
-
-    const [task] = await db
-      .insert(tasks)
-      .values(processedTask)
-      .returning();
-    return task;
+    if (taskToInsert.due_date instanceof Date) {
+      // @ts-ignore
+      taskToInsert.due_date = taskToInsert.due_date.toISOString();
+    }
+    const { data, error } = await supabase.from('tasks').insert(taskToInsert as any).select().single();
+    if (error) throw error;
+    return data as Task;
   }
 
   async updateTask(id: number, updates: Partial<InsertTask>): Promise<Task | undefined> {
-    // Log the incoming update data
-    console.log('Updating task', id, 'with data:', JSON.stringify(updates, null, 2));
-
-    // Create a new object with processed data
-    const processedUpdates = {
-      ...updates,
-      updatedAt: new Date()
-    };
-
-    // Ensure dueDate is a proper Date object if it exists
-    if (processedUpdates.dueDate !== undefined && processedUpdates.dueDate !== null) {
-      // If it's already a Date object, keep it; otherwise, try to create a new Date
-      if (!(processedUpdates.dueDate instanceof Date)) {
-        console.log('Converting dueDate to Date object:', processedUpdates.dueDate);
-        try {
-          processedUpdates.dueDate = new Date(processedUpdates.dueDate);
-          console.log('Converted dueDate:', processedUpdates.dueDate);
-        } catch (error) {
-          console.error('Failed to convert dueDate to Date object:', error);
-          // If conversion fails, set to null to avoid database errors
-          processedUpdates.dueDate = null;
-        }
-      }
+    const updatePayload = { ...updates, updated_at: new Date().toISOString() };
+    if (updatePayload.due_date && !(updatePayload.due_date instanceof Date)) {
+        // @ts-ignore
+        updatePayload.due_date = new Date(updatePayload.due_date);
     }
-
-    // Log the processed update data
-    console.log('Processed update data:', JSON.stringify(processedUpdates, null, 2));
-
-    const [updatedTask] = await db
-      .update(tasks)
-      .set(processedUpdates)
-      .where(eq(tasks.id, id))
-      .returning();
-    return updatedTask || undefined;
+    if (updatePayload.due_date instanceof Date) {
+      // @ts-ignore
+      updatePayload.due_date = updatePayload.due_date.toISOString();
+    }
+    const { data, error } = await supabase.from('tasks').update(updatePayload as any).eq('id', id).select().single();
+    if (error && error.code !== 'PGRST204') throw error;
+    return data as Task | undefined;
   }
 
   async deleteTask(id: number): Promise<boolean> {
-    try {
-      // Primeiro excluir comentários associados
-      await db.delete(taskComments).where(eq(taskComments.taskId, id));
-
-      // Depois excluir a tarefa
-      await db.delete(tasks).where(eq(tasks.id, id));
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir tarefa:", error);
-      return false;
-    }
+    // Consider deleting related task_comments first or use DB cascade.
+    await supabase.from('task_comments').delete().eq('task_id', id); // Example pre-delete
+    const { error } = await supabase.from('tasks').delete().eq('id', id);
+    return !error;
   }
 
-  async getTasksByAssignedToId(userId: number): Promise<Task[]> {
-    return await db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.assignedToId, userId))
-      .orderBy(desc(tasks.createdAt));
+  async getTasksByAssignedToId(userId: string): Promise<Task[]> { // userId is UUID string
+    const { data, error } = await supabase.from('tasks').select('*').eq('assigned_to_id', userId).order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as Task[];
   }
 
-  async getTasksByAssignedById(userId: number): Promise<Task[]> {
-    return await db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.assignedById, userId))
-      .orderBy(desc(tasks.createdAt));
+  async getTasksByAssignedById(userId: string): Promise<Task[]> { // userId is UUID string
+    const { data, error } = await supabase.from('tasks').select('*').eq('assigned_by_id', userId).order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as Task[];
   }
 
   async getTasksByStatus(status: string): Promise<Task[]> {
-    return await db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.status, status))
-      .orderBy(desc(tasks.createdAt));
+    const { data, error } = await supabase.from('tasks').select('*').eq('status', status).order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as Task[];
   }
 
   async getTasksByRelatedLeadId(leadId: number): Promise<Task[]> {
-    return await db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.relatedLeadId, leadId))
-      .orderBy(desc(tasks.createdAt));
+    const { data, error } = await supabase.from('tasks').select('*').eq('related_lead_id', leadId).order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as Task[];
   }
 
-  // Task comments methods
+  // Task comments methods (assuming 'task_comments' table)
   async getTaskCommentsByTaskId(taskId: number): Promise<TaskComment[]> {
-    return await db
-      .select()
-      .from(taskComments)
-      .where(eq(taskComments.taskId, taskId))
-      .orderBy(asc(taskComments.createdAt));
+    const { data, error } = await supabase.from('task_comments').select('*').eq('task_id', taskId).order('created_at', { ascending: true });
+    if (error) throw error;
+    return data as TaskComment[];
   }
 
   async createTaskComment(insertComment: InsertTaskComment): Promise<TaskComment> {
-    const [comment] = await db
-      .insert(taskComments)
-      .values({
-        ...insertComment,
-      })
-      .returning();
-    return comment;
+    const { data, error } = await supabase.from('task_comments').insert(insertComment as any).select().single();
+    if (error) throw error;
+    return data as TaskComment;
   }
 
   async deleteTaskComment(id: number): Promise<boolean> {
-    try {
-      await db.delete(taskComments).where(eq(taskComments.id, id));
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir comentário:", error);
-      return false;
-    }
+    const { error } = await supabase.from('task_comments').delete().eq('id', id);
+    return !error;
   }
 
-  // WhatsApp methods
+  // WhatsApp methods (assuming 'whatsapp_messages' table)
   async getWhatsappMessages(leadId: number): Promise<WhatsappMessage[]> {
-    return await db
-      .select()
-      .from(whatsappMessages)
-      .where(eq(whatsappMessages.leadId, leadId))
-      .orderBy(asc(whatsappMessages.timestamp));
+    const { data, error } = await supabase.from('whatsapp_messages').select('*').eq('lead_id', leadId).order('timestamp', { ascending: true });
+    if (error) throw error;
+    return data as WhatsappMessage[];
   }
 
   async getWhatsappMessageById(id: number): Promise<WhatsappMessage | undefined> {
-    const messages = await db
-      .select()
-      .from(whatsappMessages)
-      .where(eq(whatsappMessages.id, id))
-      .limit(1);
-
-    return messages[0];
+    const { data, error } = await supabase.from('whatsapp_messages').select('*').eq('id', id).single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data as WhatsappMessage | undefined;
   }
 
   async getWhatsappMessageByApiId(messageId: string): Promise<WhatsappMessage | undefined> {
-    const messages = await db
-      .select()
-      .from(whatsappMessages)
-      .where(eq(whatsappMessages.messageId, messageId))
-      .limit(1);
-
-    return messages[0];
+    const { data, error } = await supabase.from('whatsapp_messages').select('*').eq('message_id', messageId).single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data as WhatsappMessage | undefined;
   }
 
   async createWhatsappMessage(message: InsertWhatsappMessage): Promise<WhatsappMessage> {
-    const [newMessage] = await db
-      .insert(whatsappMessages)
-      .values(message)
-      .returning();
-    return newMessage;
+    const { data, error } = await supabase.from('whatsapp_messages').insert(message as any).select().single();
+    if (error) throw error;
+    return data as WhatsappMessage;
   }
 
   async updateWhatsappMessageStatus(id: number, status: string): Promise<WhatsappMessage | undefined> {
-    const [updatedMessage] = await db
-      .update(whatsappMessages)
-      .set({ status })
-      .where(eq(whatsappMessages.id, id))
-      .returning();
-    return updatedMessage || undefined;
+    const { data, error } = await supabase.from('whatsapp_messages').update({ status }).eq('id', id).select().single();
+    if (error && error.code !== 'PGRST204') throw error;
+    return data as WhatsappMessage | undefined;
   }
 
   async updateWhatsappMessageId(id: number, messageId: string): Promise<WhatsappMessage | undefined> {
-    const [updatedMessage] = await db
-      .update(whatsappMessages)
-      .set({ messageId })
-      .where(eq(whatsappMessages.id, id))
-      .returning();
-    return updatedMessage || undefined;
+    const { data, error } = await supabase.from('whatsapp_messages').update({ message_id: messageId }).eq('id', id).select().single();
+    if (error && error.code !== 'PGRST204') throw error;
+    return data as WhatsappMessage | undefined;
   }
 
   async deleteWhatsappMessage(id: number): Promise<boolean> {
-    try {
-      await db.delete(whatsappMessages).where(eq(whatsappMessages.id, id));
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir mensagem:", error);
-      return false;
-    }
+    const { error } = await supabase.from('whatsapp_messages').delete().eq('id', id);
+    return !error;
   }
 
-  // WhatsApp Settings methods
+  // WhatsApp Settings methods (assuming 'whatsapp_settings' table)
   async getWhatsappSettings(): Promise<WhatsappSettings | undefined> {
-    const [settings] = await db.select().from(whatsappSettings).orderBy(desc(whatsappSettings.updatedAt)).limit(1);
-    return settings || undefined;
+    const { data, error } = await supabase.from('whatsapp_settings').select('*').order('updated_at', { ascending: false }).limit(1).single();
+    if (error && error.code !== 'PGRST116') { // Allow not found
+        if (error.code === 'PGRST116') return undefined; // Explicitly return undefined if not found
+        throw error;
+    }
+    return data as WhatsappSettings | undefined;
   }
 
   async saveWhatsappSettings(settings: InsertWhatsappSettings): Promise<WhatsappSettings> {
-    // Sempre insere um novo registro (pode ser ajustado para update se preferir)
-    const [saved] = await db.insert(whatsappSettings).values(settings).returning();
-    return saved;
+    // Upsert logic: try to update if a record exists, else insert.
+    // Or, always insert a new one as Drizzle version did. For simplicity, let's try upsert.
+    // This assumes 'id' is the primary key or a unique constraint for upsert.
+    // If there's no single unique row to identify for upsert, always insert.
+    const { data, error } = await supabase.from('whatsapp_settings').upsert(settings as any, { onConflict: 'id' }).select().single(); // Adjust onConflict as needed
+    if (error) throw error;
+    return data as WhatsappSettings;
   }
 
-  // Google OAuth2 token management
-  async saveGoogleTokens(userId: number, tokens: {
-    access_token: string;
-    refresh_token?: string;
-    expiry_date: number;
-  }): Promise<void> {
-    try {
-      // Usar SQL direto para gerenciar tokens do Google
-      await db.execute(sql`
-        INSERT INTO google_tokens (userId, accessToken, refreshToken, expiryDate, updatedAt)
-        VALUES (${userId}, ${tokens.access_token}, ${tokens.refresh_token || null}, ${tokens.expiry_date}, ${new Date().toISOString()})
-        ON CONFLICT (userId) 
-        DO UPDATE SET 
-          accessToken = ${tokens.access_token},
-          refreshToken = ${tokens.refresh_token || null},
-          expiryDate = ${tokens.expiry_date},
-          updatedAt = ${new Date().toISOString()}
-      `);
-      
-      console.log("Google tokens salvos com sucesso para usuário:", userId);
-    } catch (error) {
-      console.error("Erro ao salvar tokens do Google:", error);
+  // Google OAuth2 token management (assuming 'google_tokens' table)
+  // userId here might be Supabase user UUID string.
+  async saveGoogleTokens(userId: string, tokens: { access_token: string; refresh_token?: string; expiry_date: number; }): Promise<void> {
+    const payload = {
+      user_id: userId,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: new Date(tokens.expiry_date).toISOString(), // Ensure it's ISO string
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('google_tokens').upsert(payload, { onConflict: 'user_id' });
+    if (error) {
+      console.error("[SupabaseStorage] Error saving Google tokens:", error.message);
       throw error;
     }
   }
 
-  async getGoogleTokens(userId: number): Promise<{
-    access_token: string;
-    refresh_token?: string;
-    expiry_date: number;
-  } | null> {
-    try {
-      const result = await db.execute(sql`
-        SELECT accessToken, refreshToken, expiryDate 
-        FROM google_tokens 
-        WHERE userId = ${userId}
-      `);
-      
-      if (!result || result.length === 0) {
-        console.log("Nenhum token encontrado para usuário:", userId);
-        return null;
-      }
-      
-      const token = result[0] as any;
-      
-      return {
-        access_token: token.accesstoken,
-        refresh_token: token.refreshtoken,
-        expiry_date: parseInt(token.expirydate),
-      };
-    } catch (error) {
-      console.error("Erro ao buscar tokens do Google:", error);
+  async getGoogleTokens(userId: string): Promise<{ access_token: string; refresh_token?: string; expiry_date: number; } | null> {
+    const { data, error } = await supabase.from('google_tokens').select('*').eq('user_id', userId).single();
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      console.error("[SupabaseStorage] Error getting Google tokens:", error.message);
+      throw error;
+    }
+    return data ? {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token || undefined,
+      expiry_date: new Date(data.expiry_date).getTime(), // Convert ISO string back to timestamp number
+    } : null;
+  }
+
+  async deleteGoogleTokens(userId: string): Promise<void> {
+    const { error } = await supabase.from('google_tokens').delete().eq('user_id', userId);
+     if (error) {
+      console.error("[SupabaseStorage] Error deleting Google tokens:", error.message);
       throw error;
     }
   }
 
-  async deleteGoogleTokens(userId: number): Promise<void> {
-    try {
-      await db.execute(sql`
-        DELETE FROM google_tokens 
-        WHERE userId = ${userId}
-      `);
-      
-      console.log("Tokens do Google removidos para usuário:", userId);
-    } catch (error) {
-      console.error("Erro ao remover tokens do Google:", error);
-      throw error;
-    }
-  }
-
-  // NEW SCHEDULING SYSTEM METHODS
-
-  // Lead helper method
-  async getLeadById(id: number): Promise<Lead | undefined> {
-    const [lead] = await db.select().from(leads).where(eq(leads.id, id));
-    return lead || undefined;
-  }
-
-  // Agendamentos Recorrentes methods
+  // NEW SCHEDULING SYSTEM METHODS (aulas, agendamentos_recorrentes)
+  // These will also need to be converted to use Supabase client.
+  // Example for one:
   async createAgendamentoRecorrente(agendamento: InsertAgendamentoRecorrente): Promise<AgendamentoRecorrente> {
-    const [created] = await db
-      .insert(agendamentosRecorrentes)
-      .values(agendamento)
-      .returning();
-    return created;
+    const { data, error } = await supabase.from('agendamentos_recorrentes').insert(agendamento as any).select().single();
+    if (error) throw error;
+    return data as AgendamentoRecorrente;
   }
 
   async getAgendamentosRecorrentes(): Promise<AgendamentoRecorrente[]> {
-    return await db.select().from(agendamentosRecorrentes);
+    const { data, error } = await supabase.from('agendamentos_recorrentes').select('*');
+    if (error) throw error;
+    return data as AgendamentoRecorrente[];
   }
 
   async updateAgendamentoRecorrente(id: number, agendamento: Partial<InsertAgendamentoRecorrente>): Promise<AgendamentoRecorrente | undefined> {
-    try {
-      const [updated] = await db
-        .update(agendamentosRecorrentes)
-        .set({ ...agendamento, updatedAt: new Date() })
-        .where(eq(agendamentosRecorrentes.id, id))
-        .returning();
-      return updated || undefined;
-    } catch (error) {
-      console.error("Erro ao atualizar agendamento recorrente:", error);
-      return undefined;
-    }
+    const { data, error } = await supabase.from('agendamentos_recorrentes').update({ ...agendamento, updated_at: new Date().toISOString() } as any).eq('id', id).select().single();
+    if (error && error.code !== 'PGRST204') throw error;
+    return data as AgendamentoRecorrente | undefined;
   }
 
   async deleteAgendamentoRecorrente(id: number): Promise<boolean> {
-    try {
-      await db.delete(agendamentosRecorrentes).where(eq(agendamentosRecorrentes.id, id));
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir agendamento recorrente:", error);
-      return false;
-    }
+    const { error } = await supabase.from('agendamentos_recorrentes').delete().eq('id', id);
+    return !error;
   }
 
   // Aulas methods
   async getAulas(filters?: any): Promise<Aula[]> {
-    if (!filters) {
-      return await db.select().from(aulas).orderBy(asc(aulas.startTime));
+    let query = supabase.from('aulas').select('*');
+    if (filters) {
+      if (filters.startDate) query = query.gte('start_time', new Date(filters.startDate).toISOString());
+      if (filters.endDate) query = query.lte('start_time', new Date(filters.endDate).toISOString()); // Assuming filter on start_time
+      if (filters.professorId) query = query.eq('professor_id', filters.professorId); // Ensure correct column name
+      if (filters.studentId) query = query.eq('student_id', filters.studentId); // Ensure correct column name
+      if (filters.status) query = query.eq('status', filters.status);
     }
-    
-    const conditions = [];
-    
-    if (filters.startDate && filters.endDate) {
-      conditions.push(
-        and(
-          sql`${aulas.startTime} >= ${filters.startDate}`,
-          sql`${aulas.startTime} <= ${filters.endDate}`
-        )
-      );
-    }
-    
-    if (filters.professorId) {
-      conditions.push(eq(aulas.professorId, filters.professorId));
-    }
-    
-    if (filters.studentId) {
-      conditions.push(eq(aulas.studentId, filters.studentId));
-    }
-    
-    if (filters.status) {
-      conditions.push(eq(aulas.status, filters.status));
-    }
-    
-    if (conditions.length === 0) {
-      return await db.select().from(aulas).orderBy(asc(aulas.startTime));
-    }
-    
-    return await db
-      .select()
-      .from(aulas)
-      .where(and(...conditions))
-      .orderBy(asc(aulas.startTime));
+    query = query.order('start_time', { ascending: true });
+    const { data, error } = await query;
+    if (error) throw error;
+    return data as Aula[];
   }
 
   async getAulaById(id: number): Promise<Aula | undefined> {
-    const [aula] = await db.select().from(aulas).where(eq(aulas.id, id));
-    return aula || undefined;
+    const { data, error } = await supabase.from('aulas').select('*').eq('id', id).single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data as Aula | undefined;
   }
 
   async createAula(aula: InsertAula): Promise<Aula> {
-    const [created] = await db
-      .insert(aulas)
-      .values(aula)
-      .returning();
-    return created;
+    const { data, error } = await supabase.from('aulas').insert(aula as any).select().single();
+    if (error) throw error;
+    return data as Aula;
   }
 
   async createMultipleAulas(aulasList: InsertAula[]): Promise<Aula[]> {
-    const created = await db
-      .insert(aulas)
-      .values(aulasList)
-      .returning();
-    return created;
+    const { data, error } = await supabase.from('aulas').insert(aulasList as any[]).select();
+    if (error) throw error;
+    return data as Aula[];
   }
 
   async updateAula(id: number, aula: Partial<InsertAula>): Promise<Aula | undefined> {
-    try {
-      const [updated] = await db
-        .update(aulas)
-        .set({ ...aula, updatedAt: new Date() })
-        .where(eq(aulas.id, id))
-        .returning();
-      return updated || undefined;
-    } catch (error) {
-      console.error("Erro ao atualizar aula:", error);
-      return undefined;
-    }
+    const { data, error } = await supabase.from('aulas').update({ ...aula, updated_at: new Date().toISOString() } as any).eq('id', id).select().single();
+    if (error && error.code !== 'PGRST204') throw error;
+    return data as Aula | undefined;
   }
 
   async deleteAula(id: number): Promise<boolean> {
-    try {
-      await db.delete(aulas).where(eq(aulas.id, id));
-      return true;
-    } catch (error) {
-      console.error("Erro ao excluir aula:", error);
-      return false;
-    }
+    const { error } = await supabase.from('aulas').delete().eq('id', id);
+    return !error;
   }
 
-  // Conflict checking
-  async checkSchedulingConflicts(
-    professorId: number, 
-    studentId: number, 
-    startTime: Date, 
-    endTime: Date, 
-    excludeAulaId?: number
-  ): Promise<any> {
-    try {
-      const conditions = [
-        and(
-          // Check for overlapping times
-          or(
-            and(
-              sql`${aulas.startTime} < ${endTime}`,
-              sql`${aulas.endTime} > ${startTime}`
-            )
-          ),
-          // Check for same professor OR same student
-          or(
-            eq(aulas.professorId, professorId),
-            eq(aulas.studentId, studentId)
-          ),
-          // Exclude cancelled classes
-          sql`${aulas.status} != 'cancelado'`
-        )
-      ];
-
-      // Exclude specific aula if provided (for updates)
-      if (excludeAulaId) {
-        conditions.push(sql`${aulas.id} != ${excludeAulaId}`);
-      }
-
-      const conflicts = await db
-        .select()
-        .from(aulas)
-        .where(and(...conditions))
-        .limit(1);
-
-      return conflicts.length > 0 ? conflicts[0] : null;
-    } catch (error) {
-      console.error("Erro ao verificar conflitos:", error);
-      return null;
+  async getLeadById(id: number): Promise<Lead | undefined> { // Re-implementing with Supabase
+    const { data, error } = await supabase.from('leads').select('*').eq('id', id).single();
+    if (error && error.code !== 'PGRST116') {
+        console.error(`[SupabaseStorage] Error fetching lead by ID ${id}:`, error.message);
+        throw error;
     }
+    return data as Lead | undefined;
+  }
+
+  async checkSchedulingConflicts(professorId: string, studentId: string, startTime: Date, endTime: Date, excludeAulaId?: number): Promise<any> {
+    let query = supabase.from('aulas').select('id, start_time, end_time, professor_id, student_id')
+        .lt('start_time', endTime.toISOString())
+        .gt('end_time', startTime.toISOString()) // Check for overlapping time
+        .or(`professor_id.eq.${professorId},student_id.eq.${studentId}`) // Same professor OR same student
+        .neq('status', 'cancelado');
+
+    if (excludeAulaId) {
+        query = query.neq('id', excludeAulaId);
+    }
+
+    const { data: conflicts, error } = await query.limit(1);
+
+    if (error) {
+        console.error("[SupabaseStorage] Error checking scheduling conflicts:", error.message);
+        return null; // Or throw
+    }
+    return conflicts && conflicts.length > 0 ? conflicts[0] : null;
   }
 }
 
-// Inicializa o armazenamento usando o banco de dados PostgreSQL
-export const storage = new DatabaseStorage();
+// Initialize storage with Supabase client
+export const storage = new SupabaseStorage();

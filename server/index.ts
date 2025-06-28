@@ -17,7 +17,8 @@ if (isProduction) {
 } else {
   log('Starting application in development mode', 'startup');
   // Basic environment validation for development
-  const requiredEnvVars = ['DATABASE_URL'];
+  // DATABASE_URL will be removed later in favor of Supabase
+  const requiredEnvVars = ['DATABASE_URL', 'SUPABASE_URL', 'SUPABASE_KEY'];
   const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
   if (missingEnvVars.length > 0) {
