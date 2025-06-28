@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { storage } from "../storage"; // Adjust path as needed
-import { sql } from 'drizzle-orm';
+// import { sql } from 'drizzle-orm'; // REMOVE - Drizzle import
 
 export const getStats = async (req: Request, res: Response) => {
   try {

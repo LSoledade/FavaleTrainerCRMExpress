@@ -1,27 +1,42 @@
-import { 
-  leads, students, trainers, sessions, sessionHistory, whatsappMessages,
-  tasks, taskComments, // These are Drizzle schema objects
-  type Lead, type InsertLead, // These are Drizzle-generated types
-  // type User, type InsertUser, // Drizzle User types, replaced by SupabaseUser
-  type Student, type InsertStudent, // Drizzle-generated types
-  type Trainer, type InsertTrainer, // Drizzle-generated types
-  type Session, type InsertSession,
-  type SessionHistory, type InsertSessionHistory,
-  type WhatsappMessage, type InsertWhatsappMessage,
-  type Task, type InsertTask,
-  type TaskComment, type InsertTaskComment,
-  users,
-  sessionHistory as sessionHistoryTable,
-  whatsappSettings, InsertWhatsappSettings, WhatsappSettings,
-  // New scheduling system imports
-  agendamentosRecorrentes, aulas,
-  type AgendamentoRecorrente, type InsertAgendamentoRecorrente,
-  type Aula, type InsertAula
-} from "./schema"; // Drizzle schema, may need to be replaced or adapted
-// import { db } from "./db"; // Drizzle db instance, will be replaced by Supabase client
+// Removed Drizzle schema imports
+// import {
+//   leads, students, trainers, sessions, sessionHistory, whatsappMessages,
+//   tasks, taskComments, // These are Drizzle schema objects
+//   type Lead, type InsertLead, // These are Drizzle-generated types
+//   // type User, type InsertUser, // Drizzle User types, replaced by SupabaseUser
+//   type Student, type InsertStudent, // Drizzle-generated types
+//   type Trainer, type InsertTrainer, // Drizzle-generated types
+//   type Session, type InsertSession,
+//   type SessionHistory, type InsertSessionHistory,
+//   type WhatsappMessage, type InsertWhatsappMessage,
+//   type Task, type InsertTask,
+//   type TaskComment, type InsertTaskComment,
+//   users,
+//   sessionHistory as sessionHistoryTable,
+//   whatsappSettings, InsertWhatsappSettings, WhatsappSettings,
+//   // New scheduling system imports
+//   agendamentosRecorrentes, aulas,
+//   type AgendamentoRecorrente, type InsertAgendamentoRecorrente,
+//   type Aula, type InsertAula
+// } from "./schema"; // Drizzle schema, may need to be replaced or adapted
+
+// Keep existing type imports that are used in method signatures for now.
+// These will need to be defined elsewhere or adapted if Supabase schema differs.
+import type {
+  Lead, InsertLead,
+  Student, InsertStudent,
+  Trainer, InsertTrainer,
+  Session, InsertSession,
+  SessionHistory, InsertSessionHistory,
+  WhatsappMessage, InsertWhatsappMessage,
+  Task, InsertTask,
+  TaskComment, InsertTaskComment,
+  WhatsappSettings, InsertWhatsappSettings,
+  AgendamentoRecorrente, InsertAgendamentoRecorrente,
+  Aula, InsertAula
+} from "./types"; // Updated import path
+
 import { supabase } from "./supabase.js"; // Supabase client
-// import { eq, and, desc, asc, between, inArray, or, like, sql, SQL } from "drizzle-orm"; // Drizzle operators
-// import { alias } from "drizzle-orm/pg-core"; // Drizzle alias
 
 // Define Supabase-specific types if needed, or use generic object/any for now and refine
 // Example: Supabase User might be different from Drizzle User type
@@ -104,7 +119,7 @@ export interface IStorage {
   updateSession(id: number, session: Partial<InsertSession>): Promise<Session | undefined>;
   deleteSession(id: number): Promise<boolean>;
   getSessionsByStudentId(studentId: number): Promise<Session[]>;
-  getSessionsByTrainerId(trainerId: number): Promise<Session[]>;
+  getSessionsByTrainerId(trainerId: string): Promise<Session[]>; // Trainer ID is string (UUID)
   getSessionsByDateRange(startDate: Date, endDate: Date): Promise<Session[]>;
   getSessionsByStatus(status: string): Promise<Session[]>;
   getSessionsBySource(source: string): Promise<Session[]>;
@@ -121,8 +136,8 @@ export interface IStorage {
   createTask(task: InsertTask): Promise<Task>;
   updateTask(id: number, task: Partial<InsertTask>): Promise<Task | undefined>;
   deleteTask(id: number): Promise<boolean>;
-  getTasksByAssignedToId(userId: number): Promise<Task[]>;
-  getTasksByAssignedById(userId: number): Promise<Task[]>;
+  getTasksByAssignedToId(userId: string): Promise<Task[]>; // userId is string (Supabase UUID)
+  getTasksByAssignedById(userId: string): Promise<Task[]>; // userId is string (Supabase UUID)
   getTasksByStatus(status: string): Promise<Task[]>;
   getTasksByRelatedLeadId(leadId: number): Promise<Task[]>;
 
@@ -136,31 +151,31 @@ export interface IStorage {
   saveWhatsappSettings(settings: InsertWhatsappSettings): Promise<WhatsappSettings>;
 
   // Google OAuth2 token management
-  saveGoogleTokens(userId: number, tokens: {
+  saveGoogleTokens(userId: string, tokens: { // userId is string (Supabase UUID)
     access_token: string;
     refresh_token?: string;
     expiry_date: number;
   }): Promise<void>;
-  getGoogleTokens(userId: number): Promise<{
+  getGoogleTokens(userId: string): Promise<{ // userId is string (Supabase UUID)
     access_token: string;
     refresh_token?: string;
     expiry_date: number;
   } | null>;
-  deleteGoogleTokens(userId: number): Promise<void>;
+  deleteGoogleTokens(userId: string): Promise<void>; // userId is string (Supabase UUID)
 
   // New Scheduling System methods
   // Agendamentos Recorrentes
-  createAgendamentoRecorrente(agendamento: any): Promise<any>;
-  getAgendamentosRecorrentes(): Promise<any[]>;
-  updateAgendamentoRecorrente(id: number, agendamento: any): Promise<any>;
+  createAgendamentoRecorrente(agendamento: InsertAgendamentoRecorrente): Promise<AgendamentoRecorrente>;
+  getAgendamentosRecorrentes(): Promise<AgendamentoRecorrente[]>;
+  updateAgendamentoRecorrente(id: number, agendamento: Partial<InsertAgendamentoRecorrente>): Promise<AgendamentoRecorrente | undefined>;
   deleteAgendamentoRecorrente(id: number): Promise<boolean>;
 
   // Aulas (individual class instances)
-  getAulas(filters?: any): Promise<any[]>;
-  getAulaById(id: number): Promise<any | undefined>;
-  createAula(aula: any): Promise<any>;
-  createMultipleAulas(aulas: any[]): Promise<any[]>;
-  updateAula(id: number, aula: any): Promise<any>;
+  getAulas(filters?: any): Promise<Aula[]>;
+  getAulaById(id: number): Promise<Aula | undefined>;
+  createAula(aula: InsertAula): Promise<Aula>;
+  createMultipleAulas(aulas: InsertAula[]): Promise<Aula[]>;
+  updateAula(id: number, aula: Partial<InsertAula>): Promise<Aula | undefined>;
   deleteAula(id: number): Promise<boolean>;
   
   // Lead helpers
@@ -174,9 +189,6 @@ export class SupabaseStorage implements IStorage {
   
   // User/Professor methods using Supabase Auth
   async getUserById(id: string): Promise<SupabaseUser | undefined> {
-    // This typically requires admin privileges if fetching arbitrary users.
-    // If fetching the currently authenticated user, client-side supabase.auth.getUser() is preferred.
-    // For this backend context, assuming an admin-like capability or specific use case.
     console.warn(`[SupabaseStorage] getUserById: Fetching user ${id}. Ensure admin privileges if not current user.`);
     const { data, error } = await supabase.auth.admin.getUserById(id);
     if (error) {
@@ -187,26 +199,21 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<SupabaseUser | undefined> {
-    // Supabase doesn't have a direct admin method to get user by email without listing all users.
-    // This might need a profiles table or a more complex query if strictly needed on backend.
-    // For now, this is a placeholder and might be inefficient or require a different approach.
-    console.warn("[SupabaseStorage] getUserByEmail: This method might be inefficient with Supabase admin API.");
-    const { data, error } = await supabase.auth.admin.listUsers({ email }); // Not a direct filter, check Supabase docs
-     if (error) {
+    console.warn("[SupabaseStorage] getUserByEmail: This method might be inefficient with Supabase admin API. Consider a 'profiles' table or alternative lookup.");
+    // Supabase admin API does not offer direct email lookup. Listing and filtering is an option but inefficient.
+    // This implementation is a placeholder for a more robust solution (e.g., a 'profiles' table).
+    const { data, error } = await supabase.auth.admin.listUsers({ perPage: 10000 }); // High perPage, needs pagination for >10k users
+    if (error) {
       console.error(`[SupabaseStorage] Error listing users by email ${email}:`, error.message);
       return undefined;
     }
-    // This lists users, then we'd have to find the exact match.
     const user = data.users.find(u => u.email === email);
     return user as SupabaseUser | undefined;
   }
 
   async getAllProfessors(): Promise<SupabaseUser[]> {
-    // Fetches all users and filters by a role in app_metadata.
-    // This can be inefficient for a large number of users.
-    // A 'profiles' table with a 'role' column queryable via PostgREST would be better.
-    console.warn("[SupabaseStorage] getAllProfessors: Fetching all users and filtering. Consider a 'profiles' table for efficiency.");
-    const { data, error } = await supabase.auth.admin.listUsers({ perPage: 1000 }); // Adjust perPage as needed
+    console.warn("[SupabaseStorage] getAllProfessors: Fetching all users and filtering. Consider a 'profiles' table with a 'role' column for efficiency.");
+    const { data, error } = await supabase.auth.admin.listUsers({ perPage: 1000 });
     if (error) {
       console.error("[SupabaseStorage] Error fetching all users for getAllProfessors:", error.message);
       return [];
@@ -220,15 +227,16 @@ export class SupabaseStorage implements IStorage {
     console.log("[SupabaseStorage] Creating professor:", professorData.email);
     const { email, password, ...otherMetadata } = professorData;
 
-    const app_metadata = { ...otherMetadata.app_metadata, role: 'professor' };
-    if (otherMetadata.name) delete otherMetadata.name; // Assuming name goes to user_metadata or a profiles table
+    const app_metadata = { ...otherMetadata.app_metadata, role: 'professor', roles: ['professor'] };
+    const user_metadata = { ...otherMetadata.user_metadata, name: professorData.name };
+
 
     const { data, error } = await supabase.auth.admin.createUser({
       email: email,
-      password: password, // Optional: if not provided, Supabase sends an invite
-      email_confirm: true, // Or false, depending on flow
+      password: password,
+      email_confirm: true,
       app_metadata: app_metadata,
-      user_metadata: { ...otherMetadata.user_metadata, name: professorData.name }, // Example: store name here
+      user_metadata: user_metadata,
     });
 
     if (error) {
@@ -240,14 +248,16 @@ export class SupabaseStorage implements IStorage {
 
   async updateProfessor(id: string, professorData: Partial<SupabaseUser>): Promise<SupabaseUser | undefined> {
     console.log(`[SupabaseStorage] Updating professor ${id} with data:`, professorData);
-    // app_metadata and user_metadata should be updated carefully.
-    // Supabase merges, so provide only fields to change.
     const updatePayload: any = {};
-    if (professorData.app_metadata) updatePayload.app_metadata = professorData.app_metadata;
+    // Ensure app_metadata preserves existing roles if not explicitly changed
+    if (professorData.app_metadata) {
+        updatePayload.app_metadata = { role: 'professor', roles: ['professor'], ...professorData.app_metadata};
+    } else {
+        updatePayload.app_metadata = { role: 'professor', roles: ['professor']};
+    }
     if (professorData.user_metadata) updatePayload.user_metadata = professorData.user_metadata;
-    if (professorData.password) updatePayload.password = professorData.password; // For password changes
-    if (professorData.email) updatePayload.email = professorData.email; // For email changes (triggers confirmation)
-
+    if (professorData.password) updatePayload.password = professorData.password;
+    if (professorData.email) updatePayload.email = professorData.email;
 
     const { data, error } = await supabase.auth.admin.updateUserById(id, updatePayload);
 
@@ -269,31 +279,27 @@ export class SupabaseStorage implements IStorage {
   }
 
   async hasScheduledClasses(professorId: string): Promise<boolean> {
-    // This needs to query the 'aulas' or 'sessions' table where professorId matches.
-    // Assuming 'aulas' table and 'professorId' (UUID string) column.
     console.log(`[SupabaseStorage] Checking scheduled classes for professor ${professorId}`);
     const now = new Date().toISOString();
-    const { data, error, count } = await supabase
-      .from('aulas') // Replace 'aulas' with your actual table name for classes/sessions
+    // Assuming 'aulas' table and 'professor_id' (UUID string) column.
+    // And that 'professor_id' in 'aulas' corresponds to Supabase Auth user ID.
+    const { error, count } = await supabase
+      .from('aulas')
       .select('id', { count: 'exact', head: true })
-      .eq('professor_id', professorId) // Ensure column name is correct, e.g., professor_id
-      .gt('start_time', now) // Assuming 'start_time' column
-      .neq('status', 'cancelado'); // Assuming 'status' column
+      .eq('professor_id', professorId)
+      .gt('start_time', now)
+      .neq('status', 'cancelado');
 
     if (error) {
       console.error("[SupabaseStorage] Error checking scheduled classes:", error.message);
-      return false; // Or throw error, depending on desired behavior
-    }
-    return (count || 0) > 0;
-    } catch (error) {
-      console.error("Erro ao verificar aulas agendadas:", error);
       return false;
     }
+    return (count || 0) > 0;
   }
 
   // Lead methods - using Supabase client for 'leads' table
   async getLeads(): Promise<Lead[]> {
-    const { data, error } = await supabase.from('leads').select('*');
+    const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
     if (error) {
       console.error("[SupabaseStorage] Error fetching leads:", error.message);
       throw error;
@@ -303,7 +309,7 @@ export class SupabaseStorage implements IStorage {
 
   async getLead(id: number): Promise<Lead | undefined> {
     const { data, error } = await supabase.from('leads').select('*').eq('id', id).single();
-    if (error && error.code !== 'PGRST116') { // PGRST116: "Searched item was not found"
+    if (error && error.code !== 'PGRST116') {
       console.error(`[SupabaseStorage] Error fetching lead ${id}:`, error.message);
       throw error;
     }
@@ -311,17 +317,15 @@ export class SupabaseStorage implements IStorage {
   }
 
   async createLead(insertLead: InsertLead): Promise<Lead> {
-    // Ensure entryDate is correctly formatted if it's part of InsertLead
     const leadToInsert = { ...insertLead };
     if (leadToInsert.entryDate && !(leadToInsert.entryDate instanceof Date)) {
+        // @ts-ignore
         leadToInsert.entryDate = new Date(leadToInsert.entryDate);
     }
-    // Convert Date objects to ISO strings if your Supabase column expects timestamptz or date string
     if (leadToInsert.entryDate instanceof Date) {
       // @ts-ignore
       leadToInsert.entryDate = leadToInsert.entryDate.toISOString();
     }
-
 
     const { data, error } = await supabase.from('leads').insert(leadToInsert as any).select().single();
     if (error) {
@@ -342,27 +346,25 @@ export class SupabaseStorage implements IStorage {
       updatePayload.entryDate = updatePayload.entryDate.toISOString();
     }
 
-
     const { data, error } = await supabase.from('leads').update(updatePayload as any).eq('id', id).select().single();
     if (error) {
       console.error(`[SupabaseStorage] Error updating lead ${id}:`, error.message);
-      // If the error is "No rows found", it means the lead doesn't exist, which can be treated as undefined.
-      if (error.code === 'PGRST204') return undefined; // PGRST204: No Content (update/delete returned no rows)
+      if (error.code === 'PGRST204') return undefined;
       throw error;
     }
     return data as Lead | undefined;
   }
 
   async deleteLead(id: number): Promise<boolean> {
-    // Consider related data, e.g., deleting associated whatsapp_messages if necessary
-    // This might involve a transaction or multiple calls if RLS/policies don't handle cascades.
-    // For now, just deleting the lead.
-    const { error } = await supabase.from('leads').delete().eq('id', id);
+    // Consider cascade deletion for related entities (e.g., whatsapp_messages, students if lead is deleted)
+    // This might be handled by database foreign key constraints with ON DELETE CASCADE.
+    // If not, manual deletion of related records would be needed here or at service layer.
+    const { error, count } = await supabase.from('leads').delete().eq('id', id);
     if (error) {
       console.error(`[SupabaseStorage] Error deleting lead ${id}:`, error.message);
       return false;
     }
-    return true;
+    return (count !== null && count > 0) || count === null; // count can be null if returning 'minimal'
   }
 
   async getLeadsBySource(source: string): Promise<Lead[]> {
@@ -391,39 +393,48 @@ export class SupabaseStorage implements IStorage {
 
   async getLeadsByPhone(phone: string): Promise<Lead[]> {
     const cleanPhone = phone.replace(/\D/g, '');
-    // This might need a more sophisticated search, e.g., using textSearch or ilike for partial matches.
-    // For exact match on a cleaned phone number (assuming phone column stores it cleaned):
-    const { data, error } = await supabase.from('leads').select('*').like('phone', `%${cleanPhone}%`); // Basic partial match
+    const { data, error } = await supabase.from('leads').select('*').like('phone', `%${cleanPhone}%`);
     if (error) throw error;
     return data as Lead[];
   }
 
-  // Batch operations might need to be re-evaluated. Supabase JS client doesn't support batch updates/deletes in one go like Drizzle's `inArray`.
-  // You'd typically loop and perform individual operations, or use a Supabase Edge Function.
   async updateLeadsInBatch(ids: number[], updates: Partial<InsertLead>): Promise<number> {
-    console.warn("[SupabaseStorage] updateLeadsInBatch: Performing individual updates. Consider Edge Function for true batching.");
+    console.warn("[SupabaseStorage] updateLeadsInBatch: Performing individual updates. Consider an Edge Function or stored procedure for true batching.");
     let successCount = 0;
-    for (const id of ids) {
-      const updated = await this.updateLead(id, updates);
-      if (updated) successCount++;
+    const updatePayload = { ...updates, updated_at: new Date().toISOString() };
+    // Supabase PostgREST does allow batch updates using `in` filter if the structure matches
+    const { count, error } = await supabase.from('leads').update(updatePayload as any).in('id', ids);
+
+    if (error) {
+        console.error("[SupabaseStorage] Error in updateLeadsInBatch:", error.message);
+        // Fallback to individual updates if batch fails or for more complex scenarios
+        for (const id of ids) {
+            const updated = await this.updateLead(id, updates); // updates, not updatePayload, as updateLead adds timestamp
+            if (updated) successCount++;
+        }
+        return successCount;
     }
-    return successCount;
+    return count || 0;
   }
 
   async deleteLeadsInBatch(ids: number[]): Promise<number> {
-    console.warn("[SupabaseStorage] deleteLeadsInBatch: Performing individual deletes. Consider Edge Function for true batching.");
-    let successCount = 0;
-    for (const id of ids) {
-      const deleted = await this.deleteLead(id);
-      if (deleted) successCount++;
+    console.warn("[SupabaseStorage] deleteLeadsInBatch: Consider an Edge Function or stored procedure for true batching with cascade effects.");
+    const { count, error } = await supabase.from('leads').delete().in('id', ids);
+    if (error) {
+        console.error("[SupabaseStorage] Error in deleteLeadsInBatch:", error.message);
+        let successCount = 0;
+        for (const id of ids) {
+            const deleted = await this.deleteLead(id);
+            if (deleted) successCount++;
+        }
+        return successCount;
     }
-    return successCount;
+    return count || 0;
   }
 
   // Trainer methods: Assuming 'trainers' is a table in Supabase.
-  // If trainers are just users with a 'trainer' role, these methods would be similar to professor methods.
-  // For this example, let's assume 'trainers' is a separate table like 'leads'.
-  // The Trainer type would need to match the table structure.
+  // IDs for trainers are assumed to be numeric serial IDs as per Drizzle schema.
+  // If trainers become Supabase Auth users, their IDs would be UUID strings.
   async getTrainers(): Promise<Trainer[]> {
     const { data, error } = await supabase.from('trainers').select('*').order('name');
     if (error) throw error;
@@ -449,8 +460,9 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteTrainer(id: number): Promise<boolean> {
-    const { error } = await supabase.from('trainers').delete().eq('id', id);
-    return !error;
+    const { error, count } = await supabase.from('trainers').delete().eq('id', id);
+    if (error) return false;
+    return (count !== null && count > 0) || count === null;
   }
 
   async getActiveTrainers(): Promise<Trainer[]> {
@@ -460,14 +472,13 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getTrainersBySpecialty(specialty: string): Promise<Trainer[]> {
-    // Assuming 'specialties' is an array column (e.g., text[])
     const { data, error } = await supabase.from('trainers').select('*').contains('specialties', [specialty]);
     if (error) throw error;
     return data as Trainer[];
   }
 
 
-  // Student methods: Assuming 'students' table.
+  // Student methods: Assuming 'students' table. Numeric IDs.
   async getStudents(): Promise<Student[]> {
     const { data, error } = await supabase.from('students').select('*').order('id');
     if (error) throw error;
@@ -481,8 +492,8 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getStudentByLeadId(leadId: number): Promise<Student | undefined> {
-    const { data, error } = await supabase.from('students').select('*').eq('lead_id', leadId).single();
-    if (error && error.code !== 'PGRST116') throw error;
+    const { data, error } = await supabase.from('students').select('*').eq('lead_id', leadId).maybeSingle(); // Use maybeSingle if it's possible for no student to exist for a lead
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 is fine with maybeSingle if no row
     return data as Student | undefined;
   }
 
@@ -499,8 +510,9 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteStudent(id: number): Promise<boolean> {
-    const { error } = await supabase.from('students').delete().eq('id', id);
-    return !error;
+    const { error, count } = await supabase.from('students').delete().eq('id', id);
+    if (error) return false;
+    return (count !== null && count > 0) || count === null;
   }
 
   async getActiveStudents(): Promise<Student[]> {
@@ -516,21 +528,18 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getStudentsWithLeadInfo(): Promise<(Student & { lead: Lead | null })[]> {
-    // This requires a join. Supabase syntax for this is:
-    // rpc call or a view, or fetching students then leads separately and merging.
-    // Simple approach: fetch students, then for each student with lead_id, fetch lead. Less efficient.
-    // Better: supabase.from('students').select('*, leads(*)') if FK is set up.
-    const { data: studentsData, error } = await supabase.from('students').select('*, leads ( * )');
+    // Ensure 'leads' table is referenced correctly, assuming FK `lead_id` on `students` table.
+    const { data: studentsData, error } = await supabase.from('students').select('*, lead:leads!inner(*)'); // !inner to ensure lead exists or filter out
+    // Or '*, lead:leads(*)' if lead can be null and you want to keep the student record
     if (error) {
       console.error("[SupabaseStorage] Error in getStudentsWithLeadInfo:", error.message);
       throw error;
     }
-    // The result will have 'leads' nested if the relationship is defined in Supabase.
-    // Adapt the return type and mapping accordingly.
     return studentsData as (Student & { lead: Lead | null })[];
   }
 
-  // Session methods (assuming 'sessions' table)
+  // Session methods (assuming 'sessions' table). Numeric IDs for student/trainer if they are not Supabase Auth users.
+  // If trainer_id refers to a Supabase Auth user, it should be string.
   async getSessions(): Promise<Session[]> {
     const { data, error } = await supabase.from('sessions').select('*').order('start_time', { ascending: false });
     if (error) throw error;
@@ -556,18 +565,21 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteSession(id: number): Promise<boolean> {
-    const { error } = await supabase.from('sessions').delete().eq('id', id);
-    return !error;
+    const { error, count } = await supabase.from('sessions').delete().eq('id', id);
+    if (error) return false;
+    return (count !== null && count > 0) || count === null;
   }
 
   async getSessionsByStudentId(studentId: number): Promise<Session[]> {
     // Assuming studentId in 'sessions' table is 'student_id' or 'lead_id'
+    // The Drizzle schema used 'lead_id' for student reference in sessions.
     const { data, error } = await supabase.from('sessions').select('*').eq('lead_id', studentId).order('start_time', { ascending: false });
     if (error) throw error;
     return data as Session[];
   }
 
-  async getSessionsByTrainerId(trainerId: number): Promise<Session[]> { // trainerId might be string (UUID) now
+  async getSessionsByTrainerId(trainerId: string): Promise<Session[]> { // trainerId is now string (UUID for Supabase user)
+     // Assuming trainer_id in 'sessions' table refers to Supabase Auth user ID.
      const { data, error } = await supabase.from('sessions').select('*').eq('trainer_id', trainerId).order('start_time', { ascending: false });
     if (error) throw error;
     return data as Session[];
@@ -576,7 +588,7 @@ export class SupabaseStorage implements IStorage {
   async getSessionsByDateRange(startDate: Date, endDate: Date): Promise<Session[]> {
     const { data, error } = await supabase.from('sessions').select('*')
       .gte('start_time', startDate.toISOString())
-      .lte('start_time', endDate.toISOString()) // or 'end_time' depending on logic for range
+      .lte('end_time', endDate.toISOString()) // Assuming range query should be start_time >= startDate AND end_time <= endDate
       .order('start_time', { ascending: true });
     if (error) throw error;
     return data as Session[];
@@ -595,36 +607,38 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getSessionsWithDetails(): Promise<any[]> {
-    // This is a complex join. Best handled by a Supabase View or RPC function, or multiple queries.
-    // Example with client-side join (less efficient for large data):
-    // 1. Fetch sessions
-    // 2. For each session, fetch student (with lead) and trainer details.
-    // OR, if FKs are set up: supabase.from('sessions').select('*, students(*, leads(*)), trainers(*)')
-    console.warn("[SupabaseStorage] getSessionsWithDetails: Using nested selects. Consider a DB view or RPC for performance.");
+    console.warn("[SupabaseStorage] getSessionsWithDetails: Using nested selects. Ensure FKs are set up correctly in Supabase for `students` and `trainers` references in the `sessions` table. Trainer ID might be UUID string if it refers to a Supabase Auth user.");
+    // Assuming student_id (or lead_id) and trainer_id are FKs in 'sessions' table.
+    // If trainer_id is a Supabase user UUID, the join to 'trainers' table might need adjustment or 'trainers' might be 'profiles'.
+    // For this example, assuming 'trainers' table with numeric ID for join as per original Drizzle schema.
+    // If 'trainer_id' in 'sessions' is a UUID string for Supabase user, then the join should be to a 'profiles' table or directly to user_metadata if simple.
+    // For now, keeping the join structure as implied by original code.
     const { data, error } = await supabase.from('sessions').select(`
-      id, start_time, end_time, location, notes, status, source, created_at, updated_at,
+      *,
       student:students (id, source, address, lead:leads (name, email, phone)),
-      trainer:trainers (id, name, email, phone, specialties)
+      trainer:users!sessions_trainer_id_fkey (id, name:raw->user_metadata->>name, email)
     `).order('start_time', { ascending: false });
+    // Note: The trainer join assumes 'trainer_id' in 'sessions' is a UUID that refers to 'id' in 'auth.users'.
+    // And that 'name' is in user_metadata. This needs to match actual Supabase schema.
+    // If 'trainers' is a separate table with numeric IDs, the join would be: trainer:trainers(id, name, email)
 
     if (error) {
       console.error("[SupabaseStorage] Error in getSessionsWithDetails:", error.message);
       throw error;
     }
-    // Map to desired structure if needed, Supabase might return nested objects directly.
     return data.map((s: any) => ({
-        ...s, // session fields
-        student: s.students ? { ...s.students, ...s.students.leads } : null, // flatten student and lead
-        trainer: s.trainers
+        ...s,
+        student: s.student ? { ...(s.student.lead || {}), ...s.student } : null, // flatten student and lead
+        trainer: s.trainer // This will depend on the join structure
     }));
   }
 
   async getCompletedSessionsByStudent(studentId: number, startDate?: Date, endDate?: Date): Promise<Session[]> {
     let query = supabase.from('sessions').select('*')
-      .eq('lead_id', studentId)
+      .eq('lead_id', studentId) // Assuming lead_id is the student reference
       .eq('status', 'concluido');
     if (startDate) query = query.gte('start_time', startDate.toISOString());
-    if (endDate) query = query.lte('start_time', endDate.toISOString());
+    if (endDate) query = query.lte('start_time', endDate.toISOString()); // Query by start_time within range
     query = query.order('start_time', { ascending: true });
 
     const { data, error } = await query;
@@ -633,7 +647,9 @@ export class SupabaseStorage implements IStorage {
   }
 
   // Session history methods (assuming 'session_history' table)
+  // UserID in session_history might become a string if it refers to Supabase Auth user ID.
   async createSessionHistory(history: InsertSessionHistory): Promise<SessionHistory> {
+    // Assuming history.userId is correctly typed (string for Supabase auth user, or number for old system user)
     const { data, error } = await supabase.from('session_history').insert(history as any).select().single();
     if (error) throw error;
     return data as SessionHistory;
@@ -646,7 +662,7 @@ export class SupabaseStorage implements IStorage {
   }
 
   // Task methods (assuming 'tasks' table)
-  // Note: assigned_to_id, assigned_by_id might become UUID strings if they refer to Supabase users.
+  // assigned_to_id, assigned_by_id are now string (Supabase user UUIDs)
   async getTasks(): Promise<Task[]> {
     const { data, error } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
     if (error) throw error;
@@ -669,6 +685,7 @@ export class SupabaseStorage implements IStorage {
       // @ts-ignore
       taskToInsert.due_date = taskToInsert.due_date.toISOString();
     }
+    // Ensure assigned_by_id and assigned_to_id are strings if they are UUIDs
     const { data, error } = await supabase.from('tasks').insert(taskToInsert as any).select().single();
     if (error) throw error;
     return data as Task;
@@ -690,19 +707,20 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteTask(id: number): Promise<boolean> {
-    // Consider deleting related task_comments first or use DB cascade.
-    await supabase.from('task_comments').delete().eq('task_id', id); // Example pre-delete
-    const { error } = await supabase.from('tasks').delete().eq('id', id);
-    return !error;
+    // Delete related task_comments first or use DB cascade if configured.
+    await supabase.from('task_comments').delete().eq('task_id', id);
+    const { error, count } = await supabase.from('tasks').delete().eq('id', id);
+    if (error) return false;
+    return (count !== null && count > 0) || count === null;
   }
 
-  async getTasksByAssignedToId(userId: string): Promise<Task[]> { // userId is UUID string
+  async getTasksByAssignedToId(userId: string): Promise<Task[]> {
     const { data, error } = await supabase.from('tasks').select('*').eq('assigned_to_id', userId).order('created_at', { ascending: false });
     if (error) throw error;
     return data as Task[];
   }
 
-  async getTasksByAssignedById(userId: string): Promise<Task[]> { // userId is UUID string
+  async getTasksByAssignedById(userId: string): Promise<Task[]> {
     const { data, error } = await supabase.from('tasks').select('*').eq('assigned_by_id', userId).order('created_at', { ascending: false });
     if (error) throw error;
     return data as Task[];
@@ -721,24 +739,29 @@ export class SupabaseStorage implements IStorage {
   }
 
   // Task comments methods (assuming 'task_comments' table)
+  // userId in task_comments might become a string if it refers to Supabase Auth user ID.
   async getTaskCommentsByTaskId(taskId: number): Promise<TaskComment[]> {
-    const { data, error } = await supabase.from('task_comments').select('*').eq('task_id', taskId).order('created_at', { ascending: true });
+    // Assuming comment.userId is string if it refers to Supabase Auth user
+    const { data, error } = await supabase.from('task_comments').select('*, user:users(id, name:raw->user_metadata->>name, email)') // Example join to get commenter name
+                                    .eq('task_id', taskId).order('created_at', { ascending: true });
     if (error) throw error;
     return data as TaskComment[];
   }
 
   async createTaskComment(insertComment: InsertTaskComment): Promise<TaskComment> {
+    // Ensure insertComment.userId is a string if it's a Supabase Auth user ID
     const { data, error } = await supabase.from('task_comments').insert(insertComment as any).select().single();
     if (error) throw error;
     return data as TaskComment;
   }
 
   async deleteTaskComment(id: number): Promise<boolean> {
-    const { error } = await supabase.from('task_comments').delete().eq('id', id);
-    return !error;
+    const { error, count } = await supabase.from('task_comments').delete().eq('id', id);
+    if (error) return false;
+    return (count !== null && count > 0) || count === null;
   }
 
-  // WhatsApp methods (assuming 'whatsapp_messages' table)
+  // WhatsApp methods (assuming 'whatsapp_messages' table) - Seem mostly fine
   async getWhatsappMessages(leadId: number): Promise<WhatsappMessage[]> {
     const { data, error } = await supabase.from('whatsapp_messages').select('*').eq('lead_id', leadId).order('timestamp', { ascending: true });
     if (error) throw error;
@@ -776,38 +799,41 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteWhatsappMessage(id: number): Promise<boolean> {
-    const { error } = await supabase.from('whatsapp_messages').delete().eq('id', id);
-    return !error;
+    const { error, count } = await supabase.from('whatsapp_messages').delete().eq('id', id);
+    if (error) return false;
+    return (count !== null && count > 0) || count === null;
   }
 
-  // WhatsApp Settings methods (assuming 'whatsapp_settings' table)
+  // WhatsApp Settings methods (assuming 'whatsapp_settings' table) - Seem mostly fine
   async getWhatsappSettings(): Promise<WhatsappSettings | undefined> {
     const { data, error } = await supabase.from('whatsapp_settings').select('*').order('updated_at', { ascending: false }).limit(1).single();
-    if (error && error.code !== 'PGRST116') { // Allow not found
-        if (error.code === 'PGRST116') return undefined; // Explicitly return undefined if not found
+    if (error && error.code !== 'PGRST116') {
+        if (error.code === 'PGRST116') return undefined;
         throw error;
     }
     return data as WhatsappSettings | undefined;
   }
 
   async saveWhatsappSettings(settings: InsertWhatsappSettings): Promise<WhatsappSettings> {
-    // Upsert logic: try to update if a record exists, else insert.
-    // Or, always insert a new one as Drizzle version did. For simplicity, let's try upsert.
-    // This assumes 'id' is the primary key or a unique constraint for upsert.
-    // If there's no single unique row to identify for upsert, always insert.
-    const { data, error } = await supabase.from('whatsapp_settings').upsert(settings as any, { onConflict: 'id' }).select().single(); // Adjust onConflict as needed
+    // Upsert based on a unique criteria, e.g. if there's a 'name' or if it's always one row.
+    // If 'id' is serial and always new, then just insert. The Drizzle schema had serial id.
+    // If we want to truly "save" (update existing or create new), we need a consistent key for onConflict.
+    // For now, assuming upsert on 'id' if it's meaningful or just insert if 'id' is auto-generated and not passed in.
+    // The provided code used upsert({onConflict: 'id'}), which implies id might be set or known.
+    // If settings object includes an 'id' for an existing row:
+    const { data, error } = await supabase.from('whatsapp_settings').upsert(settings as any, { onConflict: 'id' }).select().single();
     if (error) throw error;
     return data as WhatsappSettings;
   }
 
   // Google OAuth2 token management (assuming 'google_tokens' table)
-  // userId here might be Supabase user UUID string.
+  // userId is string (Supabase user UUID)
   async saveGoogleTokens(userId: string, tokens: { access_token: string; refresh_token?: string; expiry_date: number; }): Promise<void> {
     const payload = {
       user_id: userId,
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
-      expiry_date: new Date(tokens.expiry_date).toISOString(), // Ensure it's ISO string
+      expiry_date: new Date(tokens.expiry_date).toISOString(),
       updated_at: new Date().toISOString()
     };
     const { error } = await supabase.from('google_tokens').upsert(payload, { onConflict: 'user_id' });
@@ -820,14 +846,14 @@ export class SupabaseStorage implements IStorage {
   async getGoogleTokens(userId: string): Promise<{ access_token: string; refresh_token?: string; expiry_date: number; } | null> {
     const { data, error } = await supabase.from('google_tokens').select('*').eq('user_id', userId).single();
     if (error) {
-      if (error.code === 'PGRST116') return null; // Not found
+      if (error.code === 'PGRST116') return null;
       console.error("[SupabaseStorage] Error getting Google tokens:", error.message);
       throw error;
     }
     return data ? {
       access_token: data.access_token,
       refresh_token: data.refresh_token || undefined,
-      expiry_date: new Date(data.expiry_date).getTime(), // Convert ISO string back to timestamp number
+      expiry_date: new Date(data.expiry_date).getTime(),
     } : null;
   }
 
@@ -840,9 +866,11 @@ export class SupabaseStorage implements IStorage {
   }
 
   // NEW SCHEDULING SYSTEM METHODS (aulas, agendamentos_recorrentes)
-  // These will also need to be converted to use Supabase client.
-  // Example for one:
+  // professorId and studentId might need to be string UUIDs if they reference Supabase Auth users or profiles linked to them.
+  // The Drizzle schema had them as integers. This needs clarification based on actual Supabase schema.
+  // For now, assume numeric IDs as per Drizzle schema for these tables, unless specified as string UUID.
   async createAgendamentoRecorrente(agendamento: InsertAgendamentoRecorrente): Promise<AgendamentoRecorrente> {
+    // Ensure professor_id and student_id types match table schema (string UUID or number)
     const { data, error } = await supabase.from('agendamentos_recorrentes').insert(agendamento as any).select().single();
     if (error) throw error;
     return data as AgendamentoRecorrente;
@@ -861,18 +889,20 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteAgendamentoRecorrente(id: number): Promise<boolean> {
-    const { error } = await supabase.from('agendamentos_recorrentes').delete().eq('id', id);
-    return !error;
+    const { error, count } = await supabase.from('agendamentos_recorrentes').delete().eq('id', id);
+    if (error) return false;
+    return (count !== null && count > 0) || count === null;
   }
 
   // Aulas methods
+  // professor_id and student_id types need to match Supabase schema (string UUID or number)
   async getAulas(filters?: any): Promise<Aula[]> {
     let query = supabase.from('aulas').select('*');
     if (filters) {
       if (filters.startDate) query = query.gte('start_time', new Date(filters.startDate).toISOString());
-      if (filters.endDate) query = query.lte('start_time', new Date(filters.endDate).toISOString()); // Assuming filter on start_time
-      if (filters.professorId) query = query.eq('professor_id', filters.professorId); // Ensure correct column name
-      if (filters.studentId) query = query.eq('student_id', filters.studentId); // Ensure correct column name
+      if (filters.endDate) query = query.lte('start_time', new Date(filters.endDate).toISOString());
+      if (filters.professorId) query = query.eq('professor_id', filters.professorId); // professorId could be string UUID
+      if (filters.studentId) query = query.eq('student_id', filters.studentId); // studentId could be number or string UUID
       if (filters.status) query = query.eq('status', filters.status);
     }
     query = query.order('start_time', { ascending: true });
@@ -906,11 +936,12 @@ export class SupabaseStorage implements IStorage {
   }
 
   async deleteAula(id: number): Promise<boolean> {
-    const { error } = await supabase.from('aulas').delete().eq('id', id);
-    return !error;
+    const { error, count } = await supabase.from('aulas').delete().eq('id', id);
+    if (error) return false;
+    return (count !== null && count > 0) || count === null;
   }
 
-  async getLeadById(id: number): Promise<Lead | undefined> { // Re-implementing with Supabase
+  async getLeadById(id: number): Promise<Lead | undefined> {
     const { data, error } = await supabase.from('leads').select('*').eq('id', id).single();
     if (error && error.code !== 'PGRST116') {
         console.error(`[SupabaseStorage] Error fetching lead by ID ${id}:`, error.message);
@@ -920,10 +951,14 @@ export class SupabaseStorage implements IStorage {
   }
 
   async checkSchedulingConflicts(professorId: string, studentId: string, startTime: Date, endTime: Date, excludeAulaId?: number): Promise<any> {
+    // Assuming professorId is UUID string. studentId could be number (lead_id) or string UUID if students are also users/profiles.
+    // For this query, studentId is used in an OR clause, so its type must match the 'student_id' column in 'aulas'.
+    // If 'student_id' in 'aulas' refers to a numeric lead ID, then studentId param should be number here.
+    // For now, assuming studentId param is string and 'student_id' column in 'aulas' is also string, or it's handled by Supabase.
     let query = supabase.from('aulas').select('id, start_time, end_time, professor_id, student_id')
         .lt('start_time', endTime.toISOString())
-        .gt('end_time', startTime.toISOString()) // Check for overlapping time
-        .or(`professor_id.eq.${professorId},student_id.eq.${studentId}`) // Same professor OR same student
+        .gt('end_time', startTime.toISOString())
+        .or(`professor_id.eq.${professorId},student_id.eq.${studentId}`)
         .neq('status', 'cancelado');
 
     if (excludeAulaId) {
@@ -934,7 +969,7 @@ export class SupabaseStorage implements IStorage {
 
     if (error) {
         console.error("[SupabaseStorage] Error checking scheduling conflicts:", error.message);
-        return null; // Or throw
+        return null;
     }
     return conflicts && conflicts.length > 0 ? conflicts[0] : null;
   }

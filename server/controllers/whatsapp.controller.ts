@@ -1,9 +1,12 @@
 import type { Request, Response } from "express";
-import { db } from "../db";
+// import { db } from "../db"; // REMOVE - Drizzle db instance
 import { storage } from "../storage";
-import { leads, whatsappMessages, type WhatsappMessage } from "../schema"; // Ensure whatsappMessages table schema is imported if needed for raw query
-import { sql } from 'drizzle-orm';
+// import { leads, whatsappMessages, type WhatsappMessage } from "../schema"; // REMOVE - Drizzle schema imports (leads, whatsappMessages table object)
+// TEMPORARY: Keep WhatsappMessage type import, its source will need to change
+import type { WhatsappMessage } from "../types"; // Updated import path
+// import { sql } from 'drizzle-orm'; // REMOVE - Drizzle sql operator
 import { normalizePhone } from "../utils/lead.utils"; // Import normalizePhone
+import { supabase } from "../supabase"; // Import Supabase client for direct queries if needed
 import { 
   sendWhatsAppMessage, 
   sendWhatsAppTemplate, 

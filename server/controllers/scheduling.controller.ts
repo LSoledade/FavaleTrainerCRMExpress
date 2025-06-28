@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
 import { storage } from "../storage"; // Adjust path as needed
-import { leads } from "../schema"; // Import leads schema if needed for filtering
-import type { Session, Student } from "../schema"; // Assuming Session and Student types are in schema
+// import { leads } from "../schema"; // REMOVE - Drizzle schema import
+// Assuming Session and Student types will be available from a different source (e.g. new types file or direct definition)
+import type { Session, Student } from "../types"; // Updated import path
 
 // Placeholder for actual database interactions or more complex logic
 // For now, we'll move the existing mocked/simple logic here.

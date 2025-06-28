@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { storage } from "../storage";
-import { taskValidationSchema, taskCommentValidationSchema } from "../schema";
+import { taskValidationSchema, taskCommentValidationSchema } from "../validation"; // Updated import path
 import { addUserNamesToTasks } from "../utils/task.utils"; // Utility to add user names
 
 // Listar todas as tarefas
