@@ -164,7 +164,7 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/user", (req, res) => {
+  app.get("/api/user", (req: Request, res: Response) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Não autenticado" });
     res.json(req.user);
   });
