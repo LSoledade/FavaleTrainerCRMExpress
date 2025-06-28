@@ -20,10 +20,7 @@ import {
 } from "./schema";
 import { db } from "./db"; // Removed pool import
 import { eq, and, desc, asc, between, inArray, or, like, sql, SQL } from "drizzle-orm";
-import session from "express-session";
-import connectPgSimple from "connect-pg-simple"; // Corrected import name
-import pg from "pg"; // Import pg
-const { Pool } = pg; // Destructure Pool
+
 import { alias } from "drizzle-orm/pg-core";
 
 // modify the interface with any CRUD methods
@@ -126,7 +123,7 @@ export interface IStorage {
   deleteTaskComment(id: number): Promise<boolean>;
 
   // Session store for authentication
-  sessionStore: session.Store;
+  
 
   // WhatsApp Settings methods
   getWhatsappSettings(): Promise<WhatsappSettings | undefined>;
@@ -167,24 +164,12 @@ export interface IStorage {
   checkSchedulingConflicts(professorId: number, studentId: number, startTime: Date, endTime: Date, excludeAulaId?: number): Promise<any>;
 }
 
-const PostgresSessionStore = connectPg(session);
+
 
 export class DatabaseStorage implements IStorage {
-  sessionStore: session.Store;
+  
 
-  constructor() {
-    if (!process.env.DATABASE_URL) {
-      throw new Error("DATABASE_URL is not defined in environment variables for session store.");
-    }
-    const pgPool = new Pool({ // Use the destructured Pool
-      connectionString: process.env.DATABASE_URL,
-    });
-    const SessionStore = connectPgSimple(session); // Call connectPgSimple with session
-    this.sessionStore = new SessionStore({ // Use the returned constructor
-      pool: pgPool,
-      createTableIfMissing: true,
-    });
-  }
+  
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user || undefined;
@@ -304,15 +289,19 @@ export class DatabaseStorage implements IStorage {
       });
 
       // Ensure entryDate is a Date object
-      const leadDataToInsert = {
+      const leadDataToInsert: InsertLead = {
         ...insertLead,
         notes: insertLead.notes || null,
-        entryDate: insertLead.entryDate instanceof Date ? insertLead.entryDate : new Date(insertLead.entryDate || Date.now()),
+        entryDate: insertLead.entryDate instanceof Date 
+          ? insertLead.entryDate 
+          : insertLead.entryDate 
+            ? new Date(insertLead.entryDate)
+            : new Date(),
       };
 
       const [lead] = await db
         .insert(leads)
-        .values(leadDataToInsert) // Use the processed data
+        .values(leadDataToInsert as any) // Type assertion to work around Drizzle type inference
         .returning();
 
       console.log('Lead criado com sucesso:', lead);
@@ -327,7 +316,7 @@ export class DatabaseStorage implements IStorage {
     // Process updates, ensuring correct types for DB
     const processedUpdates: { [key: string]: any } = { ...updates }; // Use a more flexible type initially
 
-    if (updates.entryDate && !(updates.entryDate instanceof Date)) {
+    if (updates.entryDate && typeof updates.entryDate === 'string') {
       try {
         processedUpdates.entryDate = new Date(updates.entryDate);
       } catch (e) {
@@ -420,7 +409,7 @@ export class DatabaseStorage implements IStorage {
     // Process updates for batch, ensuring correct types
     const processedUpdates: { [key: string]: any } = { ...updates }; // Use flexible type
 
-    if (updates.entryDate && !(updates.entryDate instanceof Date)) {
+    if (updates.entryDate && typeof updates.entryDate === 'string') {
        try {
         processedUpdates.entryDate = new Date(updates.entryDate);
       } catch (e) {
@@ -647,7 +636,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(sessions)
-      .where(eq(sessions.studentId, studentId))
+      .where(eq(sessions.leadId, studentId))
       .orderBy(desc(sessions.startTime));
   }
 
@@ -700,7 +689,6 @@ export class DatabaseStorage implements IStorage {
         notes: sessions.notes,
         status: sessions.status,
         source: sessions.source,
-        googleEventId: sessions.googleEventId,
         createdAt: sessions.createdAt,
         updatedAt: sessions.updatedAt,
         student: {
@@ -720,7 +708,7 @@ export class DatabaseStorage implements IStorage {
         }
       })
       .from(sessions)
-      .leftJoin(s, eq(sessions.studentId, s.id))
+      .leftJoin(s, eq(sessions.leadId, s.leadId))
       .leftJoin(t, eq(sessions.trainerId, t.id))
       .leftJoin(l, eq(s.leadId, l.id))
       .orderBy(desc(sessions.startTime));
@@ -733,7 +721,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<Session[]> {
     // Define base conditions as an array, explicitly typing elements as SQL
     const conditions: SQL[] = [
-      eq(sessions.studentId, studentId) as SQL,
+      eq(sessions.leadId, studentId) as SQL,
       eq(sessions.status, 'concluido') as SQL // Ensure this matches your actual status value
     ];
 
@@ -1040,12 +1028,12 @@ export class DatabaseStorage implements IStorage {
         WHERE userId = ${userId}
       `);
       
-      if (!result.rows || result.rows.length === 0) {
+      if (!result || result.length === 0) {
         console.log("Nenhum token encontrado para usuário:", userId);
         return null;
       }
       
-      const token = result.rows[0] as any;
+      const token = result[0] as any;
       
       return {
         access_token: token.accesstoken,
@@ -1119,38 +1107,42 @@ export class DatabaseStorage implements IStorage {
 
   // Aulas methods
   async getAulas(filters?: any): Promise<Aula[]> {
-    let query = db.select().from(aulas);
-    
-    if (filters) {
-      const conditions = [];
-      
-      if (filters.startDate && filters.endDate) {
-        conditions.push(
-          and(
-            sql`${aulas.startTime} >= ${filters.startDate}`,
-            sql`${aulas.startTime} <= ${filters.endDate}`
-          )
-        );
-      }
-      
-      if (filters.professorId) {
-        conditions.push(eq(aulas.professorId, filters.professorId));
-      }
-      
-      if (filters.studentId) {
-        conditions.push(eq(aulas.studentId, filters.studentId));
-      }
-      
-      if (filters.status) {
-        conditions.push(eq(aulas.status, filters.status));
-      }
-      
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
-      }
+    if (!filters) {
+      return await db.select().from(aulas).orderBy(asc(aulas.startTime));
     }
     
-    return await query.orderBy(asc(aulas.startTime));
+    const conditions = [];
+    
+    if (filters.startDate && filters.endDate) {
+      conditions.push(
+        and(
+          sql`${aulas.startTime} >= ${filters.startDate}`,
+          sql`${aulas.startTime} <= ${filters.endDate}`
+        )
+      );
+    }
+    
+    if (filters.professorId) {
+      conditions.push(eq(aulas.professorId, filters.professorId));
+    }
+    
+    if (filters.studentId) {
+      conditions.push(eq(aulas.studentId, filters.studentId));
+    }
+    
+    if (filters.status) {
+      conditions.push(eq(aulas.status, filters.status));
+    }
+    
+    if (conditions.length === 0) {
+      return await db.select().from(aulas).orderBy(asc(aulas.startTime));
+    }
+    
+    return await db
+      .select()
+      .from(aulas)
+      .where(and(...conditions))
+      .orderBy(asc(aulas.startTime));
   }
 
   async getAulaById(id: number): Promise<Aula | undefined> {
