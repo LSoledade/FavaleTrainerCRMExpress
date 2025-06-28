@@ -12,7 +12,15 @@ import {
 
 const router = Router();
 
+// Helper to wrap async route handlers and forward errors to Express
+function asyncHandler(fn: any) {
+  return function (req: any, res: any, next: any) {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
 // Rota para obter informações do usuário autenticado (substitui /api/user)
+console.log('Registering route: GET /me');
 router.get("/me", isAuthenticated, (req: Request, res: Response) => {
   if (req.user) {
     // O middleware jwtAuthMiddlewareGlobal já populou req.user com dados do Supabase
@@ -27,10 +35,14 @@ router.get("/me", isAuthenticated, (req: Request, res: Response) => {
 
 // ROTAS PARA GESTÃO DE PROFESSORES (geralmente requerem privilégios de admin)
 // Aplicar middleware de autenticação e isAdmin para rotas de professores
-router.get("/professors", isAuthenticated, isAdmin, getAllProfessors);
-router.post("/professors", isAuthenticated, isAdmin, createProfessor);
-router.put("/professors/:id", isAuthenticated, isAdmin, updateProfessor);
-router.delete("/professors/:id", isAuthenticated, isAdmin, deleteProfessor);
+console.log('Registering route: GET /professors');
+router.get("/professors", isAuthenticated, isAdmin, asyncHandler(getAllProfessors));
+console.log('Registering route: POST /professors');
+router.post("/professors", isAuthenticated, isAdmin, asyncHandler(createProfessor));
+console.log('Registering route: PUT /professors/:id');
+router.put("/professors/:id", isAuthenticated, isAdmin, asyncHandler(updateProfessor));
+console.log('Registering route: DELETE /professors/:id');
+router.delete("/professors/:id", isAuthenticated, isAdmin, asyncHandler(deleteProfessor));
 
 // TODO: Avaliar a necessidade das rotas /api/users, /api/users/:id (delete), /api/register
 // A listagem geral de usuários, criação e deleção direta de usuários agora é

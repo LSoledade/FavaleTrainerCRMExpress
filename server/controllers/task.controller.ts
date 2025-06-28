@@ -26,12 +26,12 @@ export const getTaskById = async (req: Request, res: Response) => {
     if (!task) {
       return res.status(404).json({ message: 'Tarefa não encontrada' });
     }
-    const assignedTo = await storage.getUser(task.assignedToId);
-    const assignedBy = await storage.getUser(task.assignedById);
+    const assignedTo = await storage.getUserById(String(task.assignedToId));
+    const assignedBy = await storage.getUserById(String(task.assignedById));
     const comments = await storage.getTaskCommentsByTaskId(id);
     const commentsWithUserInfo = await Promise.all(comments.map(async comment => {
       if (comment.userId) {
-        const commentUser = await storage.getUser(comment.userId);
+        const commentUser = await storage.getUserById(String(comment.userId));
         return {
           ...comment,
           userName: commentUser?.username || 'Usuário não encontrado'
@@ -126,8 +126,8 @@ export const deleteTask = async (req: Request, res: Response) => {
 
 // Buscar tarefas por usuário designado
 export const getTasksByAssignedTo = async (req: Request, res: Response) => {
-  const userId = parseInt(req.params.userId);
-  if (isNaN(userId)) {
+  const userId = req.params.userId; // Use as string
+  if (!userId) {
     return res.status(400).json({ message: 'ID de usuário inválido' });
   }
   try {
@@ -175,7 +175,7 @@ export const addTaskComment = async (req: Request, res: Response) => {
      // Fetch user info for the new comment to return it with userName
     let commentWithUser = { ...newComment, userName: 'Usuário não encontrado' };
     if (newComment.userId) {
-        const commentUser = await storage.getUser(newComment.userId);
+        const commentUser = await storage.getUserById(String(newComment.userId));
         if (commentUser) {
             commentWithUser.userName = commentUser.username;
         }
@@ -212,4 +212,4 @@ export const deleteTaskComment = async (req: Request, res: Response) => {
     console.error(`Erro ao excluir comentário ${id}:`, error);
     res.status(500).json({ message: 'Erro ao excluir comentário' });
   }
-}; 
+};

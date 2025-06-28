@@ -49,12 +49,8 @@ export async function jwtAuthMiddlewareGlobal(req: Request, res: Response, next:
           }
 
           req.user = {
-            id: supabaseUser.id,
-            email: supabaseUser.email,
-            role: userRole,
-            app_metadata: supabaseUser.app_metadata,
-            user_metadata: supabaseUser.user_metadata,
             ...supabaseUser,
+            role: userRole,
           };
         }
       } catch (err) {
@@ -65,22 +61,25 @@ export async function jwtAuthMiddlewareGlobal(req: Request, res: Response, next:
   next();
 }
 
-export function isAuthenticated(req: Request, res: Response, next: NextFunction) {
+export function isAuthenticated(req: Request, res: Response, next: NextFunction): void {
   if (!req.user || !req.user.id) {
-    return res.status(401).json({ message: "Não autenticado. Token JWT válido é obrigatório para este recurso." });
+    res.status(401).json({ message: "Não autenticado. Token JWT válido é obrigatório para este recurso." });
+    return;
   }
   next();
 }
 
-export function isAdmin(req: Request, res: Response, next: NextFunction) {
+export function isAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
-    return res.status(401).json({ message: "Não autenticado." });
+    res.status(401).json({ message: "Não autenticado." });
+    return;
   }
 
   const userRole = req.user.role;
 
   if (userRole !== "admin") {
-    return res.status(403).json({ message: "Acesso negado. Requer privilégios de administrador." });
+    res.status(403).json({ message: "Acesso negado. Requer privilégios de administrador." });
+    return;
   }
   next();
 }

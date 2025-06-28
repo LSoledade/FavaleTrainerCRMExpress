@@ -299,7 +299,7 @@ export const createLead = async (req: Request, res: Response) => {
       ...validationResult.data,
       entryDate: validationResult.data.entryDate instanceof Date 
         ? validationResult.data.entryDate 
-        : new Date(validationResult.data.entryDate) // Ensure Date object
+        : validationResult.data.entryDate ? new Date(validationResult.data.entryDate) : new Date() // Ensure Date object, fallback to now if undefined
     };
 
     // Handle potential invalid date after conversion
@@ -423,4 +423,4 @@ export const deleteLead = async (req: Request, res: Response) => {
     console.error('Erro ao deletar lead:', error);
     res.status(500).json({ message: "Erro ao deletar lead" });
   }
-}; 
+};

@@ -7,8 +7,15 @@ const router = Router();
 // Apply authentication middleware to weather routes
 router.use(isAuthenticated);
 
-// Weather routes
-router.get('/status', checkStatus);
-router.get('/:city', getWeather);
+// Helper to wrap async route handlers and forward errors to Express
+function asyncHandler(fn: any) {
+  return function (req: any, res: any, next: any) {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
 
-export default router; 
+// Weather routes
+router.get('/status', asyncHandler(checkStatus));
+router.get('/:city', asyncHandler(getWeather));
+
+export default router;

@@ -39,7 +39,6 @@ import taskRouter from "./routes/task.routes"; // Import task router
 import whatsappRouter from "./routes/whatsapp.routes"; // Import whatsapp router
 import auditLogRouter from "./routes/auditLog.routes"; // Import auditLog router
 import weatherRouter from "./routes/weather.routes"; // Import weather router
-import schedulingRouter from "./routes/scheduling.routes"; // Import scheduling router
 import statsRouter from "./routes/stats.routes"; // Import stats router
 import { isAuthenticated, isAdmin, jwtAuthMiddlewareGlobal } from "./middlewares/auth.middleware.js"; // Import middlewares
 import { addUserNamesToTasks } from "./utils/task.utils"; // Import addUserNamesToTasks
@@ -51,16 +50,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes (e.g., /api/user) will be handled by userRouter or a new authRouter if needed.
   // Supabase handles direct login/registration, so no /api/login, /api/register, /api/logout here.
 
-   Use the new routers
-   // User routes, including fetching current user info
-   app.use("/api/users", userRouter);
-   app.use("/api/leads", leadRouter); // Use lead router
-   app.use("/api/tasks", taskRouter); // Use task router
-   app.use("/api/whatsapp", whatsappRouter); // Use whatsapp router
-   app.use("/api/audit-logs", auditLogRouter); // Use auditLog router
-   app.use("/api/weather", weatherRouter); // Use weather router
-   app.use("/api/scheduling", schedulingRouter); // Use old scheduling router
-   app.use("/api/stats", statsRouter); // Use stats router
+  // User routes, including fetching current user info
+  console.log("Registering route: /api/users");
+  app.use("/api/users", userRouter);
+  console.log("Registering route: /api/leads");
+  app.use("/api/leads", leadRouter); // Use lead router
+  console.log("Registering route: /api/tasks");
+  app.use("/api/tasks", taskRouter); // Use task router
+  console.log("Registering route: /api/whatsapp");
+  app.use("/api/whatsapp", whatsappRouter); // Use whatsapp router
+  console.log("Registering route: /api/audit-logs");
+  app.use("/api/audit-logs", auditLogRouter); // Use auditLog router
+  console.log("Registering route: /api/weather");
+  app.use("/api/weather", weatherRouter); // Use weather router
+  console.log("Registering route: /api/stats");
+  app.use("/api/stats", statsRouter); // Use stats router
   
   const httpServer = createServer(app);
 

@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { storage } from "../storage.js"; // .js for ES modules
 // import { hashPassword } from "../utils/auth.utils"; // No longer needed, Supabase handles passwords
-import { professorValidationSchema } from "@shared/schema"; // Assuming this path is correct
+import { professorValidationSchema } from "../validation";
 import { ZodError } from "zod";
 import { supabase } from "../supabase.js"; // Import Supabase client for admin operations if needed
 
@@ -122,23 +122,23 @@ export const createProfessor = async (req: Request, res: Response) => {
 // Atualizar professor
 export const updateProfessor = async (req: Request, res: Response) => {
   try {
-    const professorId = parseInt(req.params.id);
-    if (isNaN(professorId)) {
+    const professorId = req.params.id; // Expect string UUID
+    if (!professorId || typeof professorId !== 'string' || professorId.length < 10) {
       return res.status(400).json({ message: "ID do professor inválido" });
     }
 
     // Validar dados (sem senha obrigatória na validação inicial)
     // Password update is a special case for Supabase.
-    const updateSchema = professorValidationSchema.partial().omit({ password: true, username: true }); // Username (email for Supabase) is not typically changed this way.
+    const updateSchema = professorValidationSchema.partial().omit({ password: true }); // Only omit password
     const validatedData = updateSchema.parse(req.body);
 
     // Prepare updates for Supabase Admin API or storage method
     const updatesForSupabase: any = { app_metadata: {}, user_metadata: {} };
 
-    if (validatedData.name) updatesForSupabase.user_metadata.name = validatedData.name; // Example: store name in user_metadata
-    if (validatedData.phone) updatesForSupabase.user_metadata.phone = validatedData.phone; // Example
+    if (validatedData.name !== undefined) updatesForSupabase.user_metadata.name = validatedData.name;
+    if (validatedData.phone !== undefined) updatesForSupabase.user_metadata.phone = validatedData.phone;
     // Add other validated fields to app_metadata or user_metadata as appropriate
-    // e.g., updatesForSupabase.app_metadata.specialties = validatedData.specialties;
+    // e.g., if (validatedData.specialties !== undefined) updatesForSupabase.app_metadata.specialties = validatedData.specialties;
 
     // Password update: If a new password is provided, it should be handled via Supabase.
     // This usually happens client-side or requires Admin API for direct update.
@@ -147,7 +147,7 @@ export const updateProfessor = async (req: Request, res: Response) => {
     }
 
     // Email update: Also a special case, often involves re-verification.
-    if (validatedData.email) {
+    if (validatedData.email !== undefined) {
         // supabase.auth.admin.updateUserById(userId, { email: newEmail })
         // This is complex due to email change confirmations.
         // For now, we might disallow email changes here or require storage.updateProfessor to handle it.
@@ -216,4 +216,4 @@ export const deleteProfessor = async (req: Request, res: Response) => {
     console.error("Erro ao excluir professor:", error);
     res.status(500).json({ message: "Erro ao excluir professor" });
   }
-}; 
+};

@@ -99,32 +99,9 @@ export const deleteMessage = async (req: Request, res: Response) => {
 // Obter as mensagens mais recentes para cada lead
 export const getRecentMessagesPerLead = async (req: Request, res: Response) => {
   try {
-    // Using raw query as storage.getRecentWhatsappMessagesPerLead doesn't exist
-    const query = sql`
-      SELECT DISTINCT ON (lead_id) *
-      FROM ${whatsappMessages}
-      ORDER BY lead_id, timestamp DESC
-    `;
-    
-    // Use 'any' or a more specific type based on your DB driver's return for raw queries
-    const result: any = await db.execute(query); 
-    
-    const messagesByLead: Record<number, WhatsappMessage> = {};
-
-    // Check if the result has a 'rows' property (common pattern)
-    const rows = result?.rows || result; // Adjust based on driver
-
-    if (Array.isArray(rows)) {
-         rows.forEach((message: WhatsappMessage) => { // Assume rows are WhatsappMessage objects
-             if (message && typeof message.leadId === 'number') { // Basic validation
-                 messagesByLead[message.leadId] = message;
-             }
-         });
-    } else {
-         console.error("Unexpected result structure from DB query for recent messages:", result);
-    }
-    res.json(messagesByLead);
-
+    // TODO: Implement using storage abstraction, e.g., storage.getRecentWhatsappMessagesPerLead()
+    // For now, return 501 Not Implemented
+    res.status(501).json({ message: 'Not implemented: Use storage abstraction for recent messages per lead.' });
   } catch (error) {
     console.error('Erro ao buscar mensagens recentes:', error);
     res.status(500).json({ message: "Erro ao buscar mensagens recentes" });
@@ -374,10 +351,10 @@ export const sendTemplateMessage = async (req: Request, res: Response) => {
     const messageData: Omit<WhatsappMessage, 'id' | 'timestamp'> = {
       leadId,
       direction: 'outgoing',
-      content: `Template: ${templateName}`, // Store template name as content for reference
+      content: `Template: ${templateName}`,
       status: 'pending',
       mediaUrl: null,
-      mediaType: 'template', // Add a type for templates?
+      mediaType: null, // Fix: do not use 'template', use null
       messageId: null
     };
 
@@ -816,4 +793,4 @@ export const getWhatsappContacts = async (req: Request, res: Response) => {
       message: error.message || 'Erro interno ao obter contatos'
     });
   }
-}; 
+};
