@@ -44,6 +44,8 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
         return "Agendamentos";
       case "/calendario":
         return "Calendário";
+      case "/professores":
+        return "Professores";
       case "/tarefas":
         return "Tarefas";
       case "/whatsapp":
@@ -51,7 +53,7 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
       case "/whatsapp/config":
         return "Configurações do WhatsApp";
       case "/favale-ia":
-        return "FavaleIA";
+        return "FavaleIA"; // Assuming this is a specific feature name
       case "/config":
         return "Configurações";
       case "/auth":
@@ -59,24 +61,23 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
       case "/politica-de-privacidade":
         return "Política de Privacidade";
       default:
-        // Para rotas dinâmicas como /tarefas/:id
         if (location.startsWith("/tarefas/")) {
           return "Detalhes da Tarefa";
         }
-        return "FavaleTrainer";
+        return "Combinat CRM"; // Changed from FavaleTrainer
     }
   };
   
   return (
-    <header className="h-16 flex items-center justify-between z-10 mb-2">
+    <header className="h-16 flex items-center justify-between z-10 mb-2 bg-background text-foreground">
       <div className="flex items-center">
         <button 
-          className="lg:hidden mr-2 p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+          className="lg:hidden mr-2 p-1.5 rounded-md hover:bg-muted"
           onClick={() => setSidebarOpen(true)}
         >
-          <span className="material-icons text-gray-600 dark:text-gray-300">menu</span>
+          <span className="material-icons text-foreground/80">menu</span>
         </button>
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-white">
+        <h1 className="text-xl font-semibold text-foreground">
           {getPageTitle()}
         </h1>
       </div>
@@ -86,7 +87,7 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
           variant="outline" 
           size="sm"
           onClick={toggleTheme}
-          className="font-normal text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 flex items-center gap-1 h-9"
+          className="font-normal text-muted-foreground border-border flex items-center gap-1 h-9"
           title={getThemeTitle()}
         >
           {getThemeIcon()}
@@ -95,28 +96,28 @@ export default function Header({ setSidebarOpen }: HeaderProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <div className="flex items-center cursor-pointer ml-2">
-              <Avatar className="h-9 w-9 border-2 border-white dark:border-gray-800 ring-2 ring-gray-200 dark:ring-gray-700">
-                <AvatarFallback className="text-sm font-medium text-white bg-gray-700">
-                  {user?.username.substring(0, 2).toUpperCase() || "LW"}
+              <Avatar className="h-9 w-9 border-2 border-background ring-2 ring-border">
+                <AvatarFallback className="text-sm font-medium text-primary-foreground bg-primary">
+                  {user?.username.substring(0, 2).toUpperCase() || "CB"}
                 </AvatarFallback>
               </Avatar>
               <div className="ml-2 hidden sm:block">
-                <div className="text-sm font-medium text-gray-800 dark:text-white">{user?.username || "Leslie Watson"}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Admin</div>
+                <div className="text-sm font-medium text-foreground">{user?.username || "Usuário Combinat"}</div>
+                <div className="text-xs text-muted-foreground">{user?.role === 'admin' ? 'Admin' : 'Usuário'}</div>
               </div>
             </div>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-56 bg-popover text-popover-foreground border-border">
             <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="bg-border" />
             <Link href="/config">
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
+              <DropdownMenuItem className="hover:bg-muted focus:bg-muted">
+                <User className="mr-2 h-4 w-4 text-muted-foreground" />
                 <span>Perfil e Configurações</span>
               </DropdownMenuItem>
             </Link>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => logoutMutation.mutate()}>
+            <DropdownMenuSeparator className="bg-border"/>
+            <DropdownMenuItem onClick={() => logoutMutation.mutate()} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Sair</span>
             </DropdownMenuItem>
